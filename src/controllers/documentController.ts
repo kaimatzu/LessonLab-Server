@@ -30,7 +30,7 @@ class DocumentsController {
   }
 
   /**
-   * Safe upsert with retry logic to handle rate limits.
+   * Safe upsert with retry logic to handle rate limits. 
    * @param document - The document data to be upserted.
    * @param namespaceId - The namespace ID of the document.
    */
@@ -64,6 +64,7 @@ class DocumentsController {
    * @param res - The response object.
    * @returns A promise that resolves to the added document.
    */
+  // QUESTION(hans): nganong naa sa parameter ang response? hahaha
   async addDocuments(req: Request, res: Response) {
     upload(req, res, async (err) => {
       // This is effectively the ID of the workspace / tenant
@@ -118,10 +119,12 @@ class DocumentsController {
                   fileType: file.mimetype,
                   fileName: file.originalname,
                   documentId,
-                  documentUrl,
+                  documentUrl, 
                 },
               });
 
+              console.log("LOG: ", documentId)
+              console.log("LOG:", documentUrl)
               worker.on("message", (result: any) => {
                 if (result.error) {
                   reject(new Error(result.error));

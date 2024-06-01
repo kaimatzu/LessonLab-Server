@@ -3,6 +3,7 @@
 import { Document } from "../models/documentModel";
 import pdfParse from "pdf-parse";
 import { embedChunks } from "./embeddings";
+import { getDbConnection } from "./storage/database";
 
 async function processFile(
   /**
@@ -10,12 +11,14 @@ async function processFile(
    * @param fileName - The name of the file.
    * @param fileData - The file data as a Buffer.
    * @param fileType - The type of the file.
+   * @param documentId - The ID of the document.
    * @returns An object containing the document content, word count, and an optional error message.
    */
   fileName: string,
   fileData: Buffer,
-  fileType: string
-): Promise<{ documentContent: string; wordCount: number; error?: string }> {
+  fileType: string,
+  documentId: string
+): Promise<{ confirmation: string; wordCount: number; error?: string }> {
   try {
     let documentContent = "";
     if (fileType === "application/pdf") {
@@ -42,7 +45,11 @@ async function processFile(
 
     const wordCount = documentContent.split(/\s+/).length;
 
-    return { documentContent, wordCount };
+    const connection = await getDbConnection();
+    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `FileType`, `FileName`, `DocumentID`) VALUES (?, ?, ?, ?)", [documentContent, fileType, fileName, documentId]);
+    await connection.end();
+    
+    return { confirmation: "Success", wordCount };
   } catch (error: any) {
     console.error(
       "An error occurred while processing the document:",
@@ -55,46 +62,54 @@ async function processFile(
 /**
  * Chunks the content into smaller pieces and embeds them using the embedChunks function.
  * @param documentId - The ID of the document.
- * @param documentUrl - The URL of the document.
- * @param content - The content to be chunked and embedded.
  * @returns A promise that resolves to an object containing the processed document.
  * @throws If there is an error in chunking and embedding the document.
  */
 async function chunkAndEmbedFile(
   documentId: string,
-  documentUrl: string,
-  content: string
 ): Promise<{ document: Document }> {
   try {
-    const document: Document = {
-      documentId,
-      documentUrl,
-      chunks: [],
-    };
+    const connection = await getDbConnection();
+    const [rows]: any = await connection.execute("SELECT * FROM `Documents` WHERE `DocumentID` = ?", [documentId]);
+    await connection.end();
+    
+    if (rows.length > 0) {
+      const content = rows[0].DocumentData;
 
-    // Pick a chunking strategy (this will depend on the use case and the desired chunk size!)
-    const chunks = chunkTextByMultiParagraphs(content);
+      const document: Document = {
+        documentId,
+        chunks: [],
+      };
+      
+      // console.log("content -> ", content);
+      // Pick a chunking strategy (this will depend on the use case and the desired chunk size!)
+      const chunks = chunkTextByMultiParagraphs(content);
 
-    // Embed the chunks using the embedChunks function
-    const embeddings = await embedChunks(chunks);
+      // Embed the chunks using the embedChunks function
+      const embeddings = await embedChunks(chunks);
 
-    // Combine the chunks and their corresponding embeddings
-    // Construct the id prefix using the documentId and the chunk index
-    for (let i = 0; i < chunks.length; i++) {
-      document.chunks.push({
-        id: `${document.documentId}:${i}`,
-        values: embeddings[i].embedding,
-        text: chunks[i],
-      });
+      // Combine the chunks and their corresponding embeddings
+      // Construct the id prefix using the documentId and the chunk index
+      for (let i = 0; i < chunks.length; i++) {
+        document.chunks.push({
+          id: `${document.documentId}:${i}`,
+          values: embeddings[i].embedding,
+          text: chunks[i],
+        });
+      }
+      console.log("->")
+
+      return { document };
+    }
+    else {
+      throw new Error('No content found from database!');
     }
 
-    return { document };
   } catch (error) {
     console.error("Error in chunking and embedding document:", error);
     throw error;
   }
 }
-
 /**
  * Splits a given text into chunks of 1 to many paragraphs.
  *

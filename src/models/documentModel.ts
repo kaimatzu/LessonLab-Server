@@ -17,7 +17,7 @@ export interface Chunk {
 
 export interface Document {
   documentId: string;
-  documentUrl: string;
+  // documentUrl: string;
   chunks: Chunk[];
 }
 
@@ -42,7 +42,7 @@ export class DocumentModel {
         values: chunk.values,
         metadata: {
           text: chunk.text,
-          referenceURL: document.documentUrl,
+          // referenceURL: document.documentUrl,
         },
       })
     );

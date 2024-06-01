@@ -3,18 +3,26 @@ import { chunkAndEmbedFile, processFile } from "../documentProcessor";
 
 async function processFileWorker() {
   const { fileData, fileType, fileName, documentId, documentUrl } = workerData;
+
   try {
-    const { documentContent } = await processFile(
+    const { confirmation } = await processFile(
       fileName,
       fileData,
-      fileType
+      fileType,
+      documentId
     );
-    const { document } = await chunkAndEmbedFile(
-      documentId,
-      documentUrl,
-      documentContent
-    );
-    parentPort?.postMessage({ document });
+
+    if(confirmation === "Success") {
+      const { document } = await chunkAndEmbedFile(
+        documentId,
+        // documentUrl,
+        // documentContent
+      );
+      parentPort?.postMessage({ document });
+    }
+    else {
+      throw new Error('Failed to process file!');
+    }
   } catch (error: any) {
     parentPort?.postMessage({ error: error.message });
   }
