@@ -29,7 +29,7 @@ class UsersController {
 
       if (rows.length > 0) {
         await connection.end()
-        return res.status(400).json({ message: 'User already exist' })
+        return res.status(400).json({ error: 'User already exist' })
       }
 
       const hashedPassword = generateHash(password)
@@ -37,10 +37,11 @@ class UsersController {
       await connection.execute('INSERT INTO Users (Username, Password) VALUES (?, ?)', [username, hashedPassword])
 
       await connection.end()
-      return res.status(201).json({ message: 'User registered' })
+      res.status(201).json({ message: 'User registered ' }).send()
+      return
     } catch (error) {
       console.log(error)
-      return res.status(500).json({ message: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -53,26 +54,31 @@ class UsersController {
     const username = req.body.username
     const password = req.body.password
 
-    const connection = await getDbConnection()
-    const [rows]: any = await connection.execute('SELECT UserID, Password FROM Users WHERE Username = ?', [username])
+    try {
+      const connection = await getDbConnection()
+      const [rows]: any = await connection.execute('SELECT UserID, Password FROM Users WHERE Username = ?', [username])
 
-    if (rows.length === 0) {
+      if (rows.length === 0) {
+        await connection.end()
+        return res.status(401).json({ error: 'User not found' })
+      }
+
+      const user = rows[0]
+      const isPasswordValid = checkPassword(user.Password, password)
+
+      if (!isPasswordValid) {
+        await connection.end()
+        return res.status(401).json({ error: 'Incorrect password' })
+      }
+
+      const token = createJwtToken(username)
       await connection.end()
-      return res.status(401).json({ message: 'User not found' })
+
+      res.status(200).send(token)
+    } catch (error) {
+      console.error(error)
+      return res.status(500).json({ error: 'DB error ' + error })
     }
-
-    const user = rows[0]
-    const isPasswordValid = checkPassword(user.Password, password)
-
-    if (!isPasswordValid) {
-      await connection.end()
-      return res.status(401).json({ message: 'Incorrect password' })
-    }
-
-    const token = createJwtToken(username)
-    await connection.end()
-
-    res.status(200).send(token)
   }
 
   /**
@@ -86,17 +92,17 @@ class UsersController {
       const connection = await getDbConnection()
       const result: any = await connection.execute('SELECT * FROM Users WHERE UserID = ?', [userId])
       const rows = result[0]
+      await connection.end()
 
       if (rows.length === 0)
         return res.status(404).json({ message: "User not found" })
 
       const user = rows[0]
 
-      await connection.end()
       return res.status(200).json(user)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ message: "DB connection error" })
+      return res.status(500).json({ message: "DB error " + error })
     }
   }
 
@@ -118,7 +124,7 @@ class UsersController {
       return res.status(200).json(rows)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ message: "DB connection error" })
+      return res.status(500).json({ message: "DB error " + error })
     }
   }
 
@@ -141,8 +147,10 @@ class UsersController {
       const userResult: any = await connection.execute('SELECT * FROM Users  WHERE UserID = ?', [userId])
       const rows = userResult[0]
 
-      if (rows.length === 0)
+      if (rows.length === 0) {
+        await connection.end()
         return res.status(500).json({ message: 'DB internal error' })
+      }
 
       const user = rows[0]
 
@@ -150,7 +158,7 @@ class UsersController {
       return res.status(200).json(user)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ message: 'DB connection error' })
+      return res.status(500).json({ message: 'DB error ' + error })
     }
   }
 
@@ -165,7 +173,6 @@ class UsersController {
     try {
       const connection = await getDbConnection();
       const result: any = await connection.execute('DELETE FROM Users WHERE UserID = ?', [userId])
-      console.log(result)
       await connection.end()
 
       const header = result[0]
@@ -176,9 +183,21 @@ class UsersController {
       res.status(204).send()
     } catch (error) {
       console.log(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
+
+  // async logout(req: Request, res: Response) {
+  //   try {
+  //     const connection = await getDbConnection()
+  //     // const result = await connection.execute('')
+  //     await connection.end()
+
+  //   } catch (error) {
+  //     console.error(error)
+  //     return res.status(500).json({ error: 'DB error ' + error })
+  //   }
+  // }
 
 }
 

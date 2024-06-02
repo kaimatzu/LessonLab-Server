@@ -56,7 +56,7 @@ class ClassesController {
       return res.status(201).json(created)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -82,7 +82,7 @@ class ClassesController {
       return res.status(200).json(classResult)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -105,7 +105,7 @@ class ClassesController {
       return res.status(200).json(rows)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -164,7 +164,7 @@ class ClassesController {
       return res.status(200).json(updatedClass)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -197,7 +197,7 @@ class ClassesController {
       res.status(204).send()
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 
@@ -222,7 +222,7 @@ class ClassesController {
       return res.status(200).json(rows)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
 
   }

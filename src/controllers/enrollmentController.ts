@@ -47,7 +47,7 @@ class EnrollmentsController {
       return res.status(201).json({ UserID: userId, ClassID: classId })
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ message: 'DB connection error' })
+      return res.status(500).json({ message: 'DB error ' + error })
     }
   }
 
@@ -72,7 +72,7 @@ class EnrollmentsController {
       return res.status(200).json(rows)
     } catch (error) {
       console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      return res.status(500).json({ error: 'DB error ' + error })
     }
   }
 }

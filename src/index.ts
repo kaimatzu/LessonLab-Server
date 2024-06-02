@@ -5,6 +5,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import 'reflect-metadata'
 import documentRoutes from "./routes/documentRoutes";
 import contextRoutes from "./routes/contextRoutes";
 import userRoutes from "./routes/userRoutes";
