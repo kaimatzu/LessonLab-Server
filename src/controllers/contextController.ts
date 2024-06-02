@@ -27,9 +27,9 @@ class ContextController {
       if (!namespaceId || !messages) {
         return res.status(400).send({ message: "Missing required fields" });
       }
-      const context =  await createPrompt(messages, namespaceId);
+      const context = await createPrompt(messages, namespaceId);
 
-      res.status(200).send({ query: messages[messages.length-1], context});
+      res.status(200).send({ query: messages[messages.length - 1], context });
     } catch (error) {
       console.error("Error fetching context:", error);
       res.status(500).send({ message: "Failed to fetch context" });
@@ -39,4 +39,3 @@ class ContextController {
 }
 
 export default new ContextController();
- 

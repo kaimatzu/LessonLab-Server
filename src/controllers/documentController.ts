@@ -1,7 +1,7 @@
 // documentController.ts
 
 /**
- * Controller class for managing documents.
+ * Controller class for managing documents/files.
  */
 import fs from "fs";
 import { Request, Response } from "express";
@@ -64,7 +64,6 @@ class DocumentsController {
    * @param res - The response object.
    * @returns A promise that resolves to the added document.
    */
-  // QUESTION(hans): nganong naa sa parameter ang response? hahaha
   async addDocuments(req: Request, res: Response) {
     upload(req, res, async (err) => {
       // This is effectively the ID of the workspace / tenant

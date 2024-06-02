@@ -7,6 +7,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import documentRoutes from "./routes/documentRoutes";
 import contextRoutes from "./routes/contextRoutes";
+import userRoutes from "./routes/userRoutes";
+import materialRoutes from "./routes/materialRoutes";
+import classRoutes from "./routes/classRoutes";
 var memwatch = require("@airbnb/node-memwatch");
 
 // Define the path for the uploads directory
@@ -14,7 +17,7 @@ const uploadsDir = path.join(__dirname, "..", "uploads");
 
 if (process.env.NODE_ENV === "production") {
   console.log("Running in production mode");
-  console.log = function () {};
+  console.log = function () { };
 } else if (process.env.NODE_ENV === "profile") {
   memwatch.on("stats", function (stats: any) {
     console.log(stats);
@@ -35,6 +38,9 @@ app.use(bodyParser.json());
 
 app.use("/api/documents", documentRoutes);
 app.use("/api/context", contextRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/material', materialRoutes);
+app.use('/api/class', classRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
