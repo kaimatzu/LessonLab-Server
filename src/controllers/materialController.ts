@@ -6,10 +6,10 @@ import { Request, Response } from "express";
 class MaterialsController {
 
   constructor() {
-    this.createMaterial = this.createMaterial.bind(this);
-    this.getMaterial = this.getMaterial.bind(this);
-    this.updateMaterial = this.updateMaterial.bind(this);
-    this.deleteMaterial = this.deleteMaterial.bind(this);
+    this.createMaterial = this.createMaterial.bind(this)
+    this.getMaterial = this.getMaterial.bind(this)
+    this.updateMaterial = this.updateMaterial.bind(this)
+    this.deleteMaterial = this.deleteMaterial.bind(this)
   }
 
   /**
@@ -19,7 +19,8 @@ class MaterialsController {
    * @returns The response data
    */
   async createMaterial(req: Request, res: Response) {
-    res.status(200).send({ 'message': 'test-success' })
+
+    res.status(501).send({ message: 'Not implemented' })
   }
 
   /**
@@ -31,6 +32,7 @@ class MaterialsController {
   async getMaterial(req: Request, res: Response) {
     const materialId = req.params.materialId;
 
+    res.status(501).send({ message: 'Not implemented' })
   }
 
   /**
@@ -41,6 +43,8 @@ class MaterialsController {
    */
   async updateMaterial(req: Request, res: Response) {
     const materialId = req.params.materialId;
+
+    res.status(501).send({ message: 'Not implemented' })
   }
 
   /**
@@ -52,6 +56,7 @@ class MaterialsController {
   async deleteMaterial(req: Request, res: Response) {
     const materialId = req.params.materialId;
 
+    res.status(501).send({ message: 'Not implemented' })
   }
 }
 
