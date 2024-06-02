@@ -9,9 +9,9 @@ class UsersController {
     this.register = this.register.bind(this)
     this.login = this.login.bind(this)
     this.getUser = this.getUser.bind(this)
+    this.getUsers = this.getUsers.bind(this)
     this.updateUser = this.updateUser.bind(this)
     this.deleteUser = this.deleteUser.bind(this)
-    this.enroll = this.enroll.bind(this)
   }
 
   /**
@@ -79,23 +79,18 @@ class UsersController {
    * 
    * @param req The request object
    * @param res The response object
-   * 
-   * @returns The response object
    */
   async getUser(req: Request, res: Response) {
     const userId = req.params.userId;
     try {
-      const connection = await getDbConnection();
+      const connection = await getDbConnection()
       const result: any = await connection.execute('SELECT * FROM Users WHERE UserID = ?', [userId])
       const rows = result[0]
-
-      if (rows === null)
-        return res.status(500).json({ message: "DB internal error" })
 
       if (rows.length === 0)
         return res.status(404).json({ message: "User not found" })
 
-      const user = rows[0];
+      const user = rows[0]
 
       await connection.end()
       return res.status(200).json(user)
@@ -109,8 +104,28 @@ class UsersController {
    * 
    * @param req The request object
    * @param res The response object
+   */
+  async getUsers(req: Request, res: Response) {
+    try {
+      const connection = await getDbConnection()
+      const result: any = await connection.execute('SELECT * FROM Users')
+      const rows = result[0]
+      await connection.end()
+
+      if (rows.length === 0)
+        return res.status(204)
+
+      return res.status(200).json(rows)
+    } catch (error) {
+      console.error(error)
+      return res.status(500).json({ message: "DB connection error" })
+    }
+  }
+
+  /**
    * 
-   * @returns The response object
+   * @param req The request object
+   * @param res The response object
    */
   async updateUser(req: Request, res: Response) {
     const userId = req.params.userId
@@ -120,16 +135,13 @@ class UsersController {
       const resultHeader: any = await connection.execute('UPDATE Users SET UserType = ? WHERE UserID = ?', [userType, userId])
       const header = resultHeader[0]
 
-      if (header === null)
-        return res.status(500).json({ message: 'DB internal error' })
-
       if (header.changedRows !== 1)
         return res.status(404).json({ message: 'User not found' })
 
       const userResult: any = await connection.execute('SELECT * FROM Users  WHERE UserID = ?', [userId])
       const rows = userResult[0]
 
-      if (rows === null)
+      if (rows.length === 0)
         return res.status(500).json({ message: 'DB internal error' })
 
       const user = rows[0]
@@ -146,8 +158,6 @@ class UsersController {
    * 
    * @param req The request object
    * @param res The response object
-   * 
-   * @returns The response object
    */
   async deleteUser(req: Request, res: Response) {
     const userId = req.params.userId;
@@ -155,33 +165,19 @@ class UsersController {
     try {
       const connection = await getDbConnection();
       const result: any = await connection.execute('DELETE FROM Users WHERE UserID = ?', [userId])
+      console.log(result)
       await connection.end()
 
       const header = result[0]
 
-      if (header.affectedRows !== 1)
-        return res.status(404).json({ message: 'User not found' })
+      if (header.affectedRows === 0)
+        return res.status(404).json({ error: 'User not found' })
 
       res.status(204).send()
     } catch (error) {
       console.log(error)
-      return res.status(500).json({ message: 'DB connection error' })
+      return res.status(500).json({ error: 'DB connection error' })
     }
-  }
-
-  /**
-   * 
-   * @param req The request object
-   * @param res The response object
-   * 
-   * @returns The response
-   */
-  async enroll(req: Request, res: Response) {
-    const userId = req.params.userId;
-    const classId = req.params.classId;
-
-
-    res.status(501).send({ message: "Not implemented" })
   }
 
 }

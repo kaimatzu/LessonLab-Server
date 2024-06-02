@@ -10,6 +10,7 @@ import contextRoutes from "./routes/contextRoutes";
 import userRoutes from "./routes/userRoutes";
 import materialRoutes from "./routes/materialRoutes";
 import classRoutes from "./routes/classRoutes";
+import enrollmentRoutes from "./routes/enrollmentRoutes";
 var memwatch = require("@airbnb/node-memwatch");
 
 // Define the path for the uploads directory
@@ -39,8 +40,9 @@ app.use(bodyParser.json());
 app.use("/api/documents", documentRoutes);
 app.use("/api/context", contextRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/material', materialRoutes);
-app.use('/api/class', classRoutes);
+app.use('/api/materials', materialRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api/enrollments', enrollmentRoutes)
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

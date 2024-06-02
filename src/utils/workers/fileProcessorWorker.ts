@@ -12,7 +12,7 @@ async function processFileWorker() {
       documentId
     );
 
-    if(confirmation === "Success") {
+    if (confirmation === "Success") {
       const { document } = await chunkAndEmbedFile(
         documentId,
         // documentUrl,

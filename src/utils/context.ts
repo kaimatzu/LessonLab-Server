@@ -13,10 +13,10 @@ export const getContext = async (
   try {
     // Wrap the message in an array before passing it to embedChunks
     const embeddings = await embedChunks([message]);
-    
+
     // Extract the embedding from the response
     const embedding = embeddings[0].embedding;
-    
+
     const matches = await getMatchesFromEmbeddings(embedding, 15, namespace);
     const qualifyingDocs = matches.filter((m) => m.score && m.score > minScore);
 
