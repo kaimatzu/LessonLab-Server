@@ -124,13 +124,13 @@ class UsersController {
         return res.status(500).json({ message: 'DB internal error' })
 
       if (header.changedRows !== 1)
-        return res.status(404).json({ message: 'Failed to update' })
+        return res.status(404).json({ message: 'User not found' })
 
       const userResult: any = await connection.execute('SELECT * FROM Users  WHERE UserID = ?', [userId])
       const rows = userResult[0]
 
       if (rows === null)
-        return res.status(500).json({ message: "DB internal error" })
+        return res.status(500).json({ message: 'DB internal error' })
 
       const user = rows[0]
 
@@ -155,12 +155,14 @@ class UsersController {
     try {
       const connection = await getDbConnection();
       const result: any = await connection.execute('DELETE FROM Users WHERE UserID = ?', [userId])
-      console.log("LOG -> ", result)
-
-
-
       await connection.end()
-      return res.status(201).json({ message: 'Ok, no content' })
+
+      const header = result[0]
+
+      if (header.affectedRows !== 1)
+        return res.status(404).json({ message: 'User not found' })
+
+      res.status(204).send()
     } catch (error) {
       console.log(error)
       return res.status(500).json({ message: 'DB connection error' })
