@@ -21,7 +21,7 @@ const getMatchesFromEmbeddings = async (
 
   let indexName: string = process.env.PINECONE_INDEX_NAME || "";
   if (indexName === "") {
-    indexName = "namespace-notes";
+    indexName = "lessonlab";
     console.warn("PINECONE_INDEX_NAME environment variable not set");
   }
   // Retrieve list of indexes to check if expected index exists
