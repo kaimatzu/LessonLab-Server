@@ -1,5 +1,5 @@
 /**
- * Material is the lesson or quiz
+ * Material is the lesson or quiz model
  */
 import { Errors } from "@pinecone-database/pinecone";
 import { Request, Response } from "express";
@@ -14,6 +14,33 @@ class MaterialsController {
     this.getMaterials = this.getMaterials.bind(this)
     this.updateMaterial = this.updateMaterial.bind(this)
     this.deleteMaterial = this.deleteMaterial.bind(this)
+  }
+
+  /**
+   * 
+   * @param req The request object
+   * @param res The response object
+   */
+  async generateQuiz(req: Request, res: Response) {
+    // Spawn a python subprocess here and generate from python
+    // Might use threads
+    // NOTE: OpenAIPydanticProgram is needed to validate structured outputs
+    // NOTE: Python is needed for the OpenAIPydanticProgram 
+
+    // STEPS
+    // Get the number of items in the specifications
+    // Make a loop on the number of items
+    // Generate a question for each number (This could lead to more tokens used but accurate number of questions)
+
+  }
+
+  /**
+   * 
+   * @param req The request object
+   * @param res The response object
+   */
+  async generateLesson(req: Request, res: Response) {
+
   }
 
   /**

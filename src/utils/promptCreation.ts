@@ -60,7 +60,7 @@ export async function createQuizPrompt(messages: any[], namespaceId: string) {
         content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a lesson material.
       DO NOT SHARE REFERENCE URLS
       AI assistant will not apologize for previous responses, but instead will indicated new information was gained.
-      AI assistent will solely generate a quiz based on a structure
+      AI assistant will solely generate a quiz based on a structure
       AI assistant will take into account any CONTEXT BLOCK that is provided in a conversation. It will say it does not know if the CONTEXT BLOCK is empty.
       AI assistant will not invent anything that is not drawn directly from the context.
       AI assistant will not answer questions that are not related to the context.
@@ -82,3 +82,6 @@ export async function createQuizPrompt(messages: any[], namespaceId: string) {
     throw e;
   }
 }
+
+// TODO: Find function calling in OpenAI API in Javascript
+// Or Similar to pydantic in Python
