@@ -8,21 +8,21 @@ import { getDbConnection } from "./storage/database";
 async function processFile(
   /**
    * Processes a file and extracts its content and word count.
-   * @param fileName - The name of the file.
-   * @param fileData - The file data as a Buffer.
-   * @param fileType - The type of the file.
+   * @param documentName - The name of the file.
+   * @param documentType - The type of the file.
+   * @param documentData - The file data as a Buffer.
    * @param documentId - The ID of the document.
    * @returns An object containing the document content, word count, and an optional error message.
    */
-  fileName: string,
-  fileData: Buffer,
-  fileType: string,
+  documentName: string,
+  documentType: string,
+  documentData: Buffer,
   documentId: string
 ): Promise<{ confirmation: string; wordCount: number; error?: string }> {
   try {
     let documentContent = "";
-    if (fileType === "application/pdf") {
-      const pdfData = await pdfParse(fileData, {
+    if (documentType === "application/pdf") {
+      const pdfData = await pdfParse(documentData, {
         pagerender: function (page: any) {
           return page
             .getTextContent({
@@ -38,15 +38,15 @@ async function processFile(
         },
       });
       documentContent = pdfData.text;
-      console.log("Processing file ", fileName);
+      console.log("Processing file ", documentName);
     } else {
-      documentContent = fileData.toString("utf8");
+      documentContent = documentData.toString("utf8");
     }
 
     const wordCount = documentContent.split(/\s+/).length;
 
     const connection = await getDbConnection();
-    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `FileType`, `FileName`, `DocumentID`) VALUES (?, ?, ?, ?)", [documentContent, fileType, fileName, documentId]);
+    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`) VALUES (?, ?, ?, ?)", [documentContent, documentType, documentName, documentId]);
     await connection.end();
     
     return { confirmation: "Success", wordCount };
@@ -74,7 +74,12 @@ async function chunkAndEmbedFile(
     await connection.end();
     
     if (rows.length > 0) {
-      const content = rows[0].DocumentData;
+      const documentDataBuffer = rows[0].DocumentData;
+            
+      // Convert LONGBLOB document data to string.
+      const content = documentDataBuffer.toString('utf-8');
+
+      console.log("File content: ", content);
 
       const document: Document = {
         documentId,

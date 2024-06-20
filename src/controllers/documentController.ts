@@ -102,7 +102,7 @@ class DocumentsController {
           const fileKey = `${namespaceId}/${documentId}/${file.originalname}`;
           const documentUrl = storageService.constructFileUrl(fileKey);
 
-          const fileData = fs.readFileSync(file.path);
+          const documentData = fs.readFileSync(file.path);
 
           // Save the file to storage
           storageService
@@ -114,9 +114,9 @@ class DocumentsController {
               );
               const worker = new Worker(workerPath, {
                 workerData: {
-                  fileData,
-                  fileType: file.mimetype,
-                  fileName: file.originalname,
+                  documentData,
+                  documentType: file.mimetype,
+                  documentName: file.originalname,
                   documentId,
                   documentUrl, 
                 },

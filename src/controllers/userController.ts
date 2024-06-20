@@ -17,31 +17,42 @@ class UsersController {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-
+  
     const { username, password, userType, name, email } = req.body;
     const userId = uuidv4(); // Generate a UUID for the UserID
-
+  
     try {
       const connection = await getDbConnection();
       const [rows]: any = await connection.execute("SELECT `UserID` FROM `Users` WHERE `Username`=? OR `Email`=?", [username, email]);
-
+  
       if (rows.length > 0) {
         await connection.end();
         return res.status(400).json({ message: 'User already exists' });
       }
-
+  
       const hashedPassword = generateHash(password);
-
+  
       await connection.execute(
         'INSERT INTO Users (UserID, UserType, Name, Username, Password, Email) VALUES (?, ?, ?, ?, ?, ?)',
         [userId, userType, name, username, hashedPassword, email]
       );
-
+  
+      const token = createJwtToken(userId); // Create a JWT token
+  
       await connection.end();
-      return res.status(201).json({ message: 'User registered' });
+  
+      return res.status(201).json({
+        token,
+        user: {
+          UserID: userId,
+          UserType: userType,
+          Name: name,
+          Tokens: 0 // Default tokens to 0
+        }
+      });
     } catch (error) {
-      console.log(error)
-      return res.status(500).json({ error: 'DB error ' + error })
+      console.log(error);
+      return res.status(500).json({ error: 'DB error ' + error });
     }
   }
 
