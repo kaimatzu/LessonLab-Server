@@ -2,14 +2,15 @@ import { parentPort, workerData } from "worker_threads";
 import { chunkAndEmbedFile, processFile } from "../documentProcessor";
 
 async function processFileWorker() {
-  const { documentData, documentType, documentName, documentId, documentUrl } = workerData;
+  const { documentData, documentType, documentName, documentId, documentUrl, materialId } = workerData;
 
   try {
     const { confirmation } = await processFile(
       documentName,
       documentType,
       documentData,
-      documentId
+      documentId,
+      materialId
     );
 
     if (confirmation === "Success") {

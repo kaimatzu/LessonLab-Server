@@ -1,7 +1,11 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid'; 
 import { getDbConnection } from "../utils/storage/database";
 import { checkPassword, createJwtToken, generateHash } from "../utils/auth";
+import jwt from 'jsonwebtoken';
+import Cookies from 'cookies';
+
+const TOKEN_MAX_AGE = 60 * 60 * 1000; // 1 hour (change as needed)
 
 class UsersController {
   constructor() {
@@ -37,17 +41,23 @@ class UsersController {
         [userId, userType, name, username, hashedPassword, email]
       );
   
-      const token = createJwtToken(userId); // Create a JWT token
+      const token = createJwtToken(userId, username, userType, name, email); 
   
       await connection.end();
   
+      res.cookie('authToken', token, {
+        httpOnly: true,
+        secure: true, 
+        sameSite: 'strict',
+        maxAge: TOKEN_MAX_AGE
+      });
+  
       return res.status(201).json({
-        token,
         user: {
           UserID: userId,
           UserType: userType,
           Name: name,
-          Tokens: 0 // Default tokens to 0
+          Tokens: 0
         }
       });
     } catch (error) {
@@ -60,43 +70,51 @@ class UsersController {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-
+  
     const { identifier, password } = req.body; // Accept either username or email as "identifier"
     const isEmail = /\S+@\S+\.\S+/.test(identifier); // Check if the identifier is an email
-
+  
     try {
       const connection = await getDbConnection();
       const query = isEmail
-        ? 'SELECT UserID, Password, UserType, Name, Email, Tokens FROM Users WHERE Email = ?'
-        : 'SELECT UserID, Password, UserType, Name, Email, Tokens FROM Users WHERE Username = ?';
-
+        ? 'SELECT * FROM Users WHERE Email = ?'
+        : 'SELECT * FROM Users WHERE Username = ?';
+  
       const [rows]: any = await connection.execute(query, [identifier]);
-
+  
       if (rows.length === 0) {
         await connection.end();
         return res.status(401).json({ message: 'User not found' });
       }
-
+  
       const user = rows[0];
       const isPasswordValid = checkPassword(user.Password, password);
-
+  
       if (!isPasswordValid) {
         await connection.end();
         return res.status(401).json({ message: 'Incorrect password' });
       }
-
-      const token = createJwtToken(user.UserID); // Use UserID to create JWT token
-
+  
+      const token = createJwtToken(user.UserID, user.Username, user.UserType, user.Name, user.Email); // Include UserType in the JWT token
+  
       await connection.end();
-
+  
+      // Return user data excluding sensitive information
+      res.cookie('authToken', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict', 
+        maxAge: TOKEN_MAX_AGE
+      });
+  
       // Return user data excluding sensitive information
       const { UserID, UserType, Name, Email, Tokens } = user;
       return res.status(200).json({
-        token,
         user: {
           UserID,
           UserType,
           Name,
+          Email,
           Tokens
         }
       });
@@ -212,17 +230,43 @@ class UsersController {
     }
   }
 
-  // async logout(req: Request, res: Response) {
-  //   try {
-  //     const connection = await getDbConnection()
-  //     // const result = await connection.execute('')
-  //     await connection.end()
+  async authenticateAutoLogin(req: Request, res: Response, next: NextFunction) {
+    const token = req.cookies.authToken;
 
-  //   } catch (error) {
-  //     console.error(error)
-  //     return res.status(500).json({ error: 'DB error ' + error })
-  //   }
-  // }
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
+      req.body.user = decoded; // Attach user information to the request object
+      next();
+    } catch (error) {
+      return res.status(401).json({ message: 'Unauthorized: ' + error });
+    }
+  }
+
+  async logout(req: Request, res: Response) {
+    const cookies = new Cookies(req, res);
+    cookies.set('authToken', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', expires: new Date(0) });
+
+    res.status(200).json({ message: 'Logged out successfully' });
+  }
+
+  async authenticateLogout(req: Request, res: Response, next: NextFunction) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    try {
+      jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+      next();
+    } catch (error) {
+      return res.status(401).json({ message: 'Unauthorized or token expired' });
+    }
+  }
 
 }
 

@@ -103,6 +103,7 @@ class DocumentsController {
           const documentUrl = storageService.constructFileUrl(fileKey);
 
           const documentData = fs.readFileSync(file.path);
+          const materialId = namespaceId;
 
           // Save the file to storage
           storageService
@@ -119,6 +120,7 @@ class DocumentsController {
                   documentName: file.originalname,
                   documentId,
                   documentUrl, 
+                  materialId,
                 },
               });
 
