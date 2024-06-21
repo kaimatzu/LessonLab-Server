@@ -4,6 +4,7 @@ import path from "path";
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
+import cookieParser from 'cookie-parser';
 import dotenv from "dotenv";
 import 'reflect-metadata'
 import documentRoutes from "./routes/documentRoutes";
@@ -35,7 +36,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4001;
 
-app.use(cors());
+const corsOptions = {
+  origin: 'http://localhost:4000', // Specify the client origin (TODO: change later in deployment)
+  credentials: true, // Allow credentials (cookies, etc.)
+};
+
+app.use(cors(corsOptions));
+app.use(cookieParser());
 app.use(bodyParser.json());
 
 app.use("/api/documents", documentRoutes);

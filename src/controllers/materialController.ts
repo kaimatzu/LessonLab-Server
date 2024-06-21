@@ -5,6 +5,7 @@ import { Errors } from "@pinecone-database/pinecone";
 import { Request, Response } from "express";
 import { off } from "process";
 import { getDbConnection } from "../utils/storage/database";
+import { v4 as uuidv4 } from "uuid";
 
 class MaterialsController {
 
@@ -22,17 +23,17 @@ class MaterialsController {
    * @param res The response data
    */
   async createMaterial(req: Request, res: Response) {
-    const materialType = req.body.materialType
-    const content = req.body.content
-    const title = req.body.title
+    const { materialName, materialType } = req.body
     const userId = req.params.userId
 
+    const materialId = uuidv4()
+    
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('INSERT * INTO Materials VALUES (?, ?, ?, ?)', [materialType, content, title, userId])
+      let result: any = await connection.execute('INSERT INTO Materials (`MaterialID`, `MaterialName`, `MaterialType`, `UserID`) VALUES (?, ?, ?, ?)', [materialId, materialName, materialType, userId])
       let header = result[0]
 
-      result = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [header.insertId])
+      result = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [materialId])
       const rows = result[0]
       const material = rows[0]
 

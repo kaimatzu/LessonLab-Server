@@ -12,12 +12,14 @@ async function processFile(
    * @param documentType - The type of the file.
    * @param documentData - The file data as a Buffer.
    * @param documentId - The ID of the document.
+   * @param materialId - The ID of the material (workspace)
    * @returns An object containing the document content, word count, and an optional error message.
    */
   documentName: string,
   documentType: string,
   documentData: Buffer,
-  documentId: string
+  documentId: string,
+  materialId: string, 
 ): Promise<{ confirmation: string; wordCount: number; error?: string }> {
   try {
     let documentContent = "";
@@ -45,9 +47,9 @@ async function processFile(
 
     const wordCount = documentContent.split(/\s+/).length;
 
-    const connection = await getDbConnection();
-    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`) VALUES (?, ?, ?, ?)", [documentContent, documentType, documentName, documentId]);
-    await connection.end();
+    // const connection = await getDbConnection();
+    // await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [documentContent, documentType, documentName, documentId, materialId]);
+    // await connection.end();
     
     return { confirmation: "Success", wordCount };
   } catch (error: any) {
