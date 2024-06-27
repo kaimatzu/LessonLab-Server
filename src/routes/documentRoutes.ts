@@ -9,7 +9,8 @@ router.post("/add", (req, res) => {
   if (typeof namespaceId === "string" && namespaceId.startsWith("default")) {
     return res.status(400).json({ error: "Invalid namespaceId, you cannot edit the demo workspace" });
   }
-
+  
+  console.log("Namespace ID outer: ", namespaceId);
   documentController.addDocuments(req, res);
 });
 

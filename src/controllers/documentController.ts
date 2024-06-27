@@ -70,11 +70,12 @@ class DocumentsController {
     upload(req, res, async (err) => {
       // This is effectively the ID of the workspace / tenant
       let namespaceId = req.body.namespaceId;
-
-      
+      console.log("Namespace ID: ", namespaceId);
+      console.log("Uploading file...");
       const token = req.cookies.authToken;
 
       if (!token) {
+        console.error("No token provided")
         return res.status(403).json({ message: 'No token provided' });
       }
 
@@ -110,28 +111,30 @@ class DocumentsController {
 
       const workerPromises = files.map((file) => {
         return new Promise<Document>((resolve, reject) => {
-          // const documentId = uuidv4();
-          // const fileKey = `${namespaceId}/${documentId}/${file.originalname}`;
-          // const documentUrl = storageService.constructFileUrl(fileKey);
+          const documentId = uuidv4();
+          const fileKey = `${namespaceId}/${documentId}/${file.originalname}`;
+          const documentUrl = storageService.constructFileUrl(fileKey);
       
-          // const workerPath = path.join(__dirname, "../utils/workers/fileProcessorWorker");
-          // const worker = new Worker(workerPath, {
-          //   workerData: {
-          //     documentData: fs.readFileSync(file.path), // Pass the file data to the worker
-          //     documentType: file.mimetype,
-          //     documentName: file.originalname,
-          //     documentId,
-          //     documentUrl, 
-          //     materialId: namespaceId,
-          //   },
-          // });
+          const workerPath = path.join(__dirname, "../utils/workers/fileProcessorWorker");
+          const worker = new Worker(workerPath, {
+            workerData: {
+              documentData: fs.readFileSync(file.path), // Pass the file data to the worker
+              documentType: file.mimetype,
+              documentName: file.originalname,
+              documentId,
+              documentUrl, 
+              materialId: namespaceId,
+            },
+          });
           
-          workerService.setDocumentData(decoded.userId, file, namespaceId);
+          // workerService.setDocumentData(decoded.userId, file, namespaceId);
 
-          const worker = workerService.getWorker(decoded.userId);
-          if (!worker) {
-            return reject(new Error("Worker is not initialized"));
-          }
+          // workerService.createWorker(decoded.userId);
+          
+          // const worker = workerService.getWorker(decoded.userId);
+          // if (!worker) {
+          //   return reject(new Error("Worker is not initialized"));
+          // }
       
           worker.on("message", (result: any) => {
             if (result.error) {
@@ -142,10 +145,12 @@ class DocumentsController {
               file.buffer = Buffer.from(result.documentData);
       
               // Save the file to storage
-              const fileKey = workerService.getFileKey(decoded.userId);
+              // const fileKey = workerService.getFileKey(decoded.userId);
               if (!fileKey) {
                 return reject(new Error("File key not found"));
               }
+              console.log("File key: ", fileKey);
+              
               storageService
                 .saveFile(file, fileKey)
                 .then(() => {
@@ -163,6 +168,7 @@ class DocumentsController {
         });
       });
       
+      // workerService.destructor(decoded.userId);
 
       try {
         const documents = await Promise.all(workerPromises);
@@ -185,6 +191,7 @@ class DocumentsController {
           documentResponses,
         });
       }
+
       res.status(200).json({
         message: "Documents added successfully",
         namespaceId,

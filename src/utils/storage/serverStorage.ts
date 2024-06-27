@@ -20,13 +20,13 @@ export class ServerStorage implements StorageService {
       fs.mkdirSync(documentDirectory, { recursive: true });
     }
 
-    const destinationPath = path.join(documentDirectory, fileName);
-    await fs.promises.rename(file.path, destinationPath);
+    // const destinationPath = path.join(documentDirectory, fileName);
+    // await fs.promises.rename(file.path, destinationPath);
     
-    console.log("Save file SQL params: ", [file.buffer, file.mimetype, file.filename, documentId, namespaceId]);
+    console.log("Save file SQL params: ", [file.buffer, file.mimetype, fileName, documentId, namespaceId]);
     
     const connection = await getDbConnection();
-    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, file.filename, documentId, namespaceId]);
+    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, fileName, documentId, namespaceId]);
     await connection.end();
   }
 
@@ -70,33 +70,31 @@ export class ServerStorage implements StorageService {
   }
 
   async listFilesInNamespace(namespaceId: string): Promise<FileDetail[]> {
-    const namespacePath = path.join(this.uploadDir, namespaceId);
+    const connection = await getDbConnection();
     try {
-      const documentDirs = fs
-        .readdirSync(namespacePath, { withFileTypes: true })
-        .filter((dirent) => dirent.isDirectory())
-        .map((dirent) => dirent.name);
+      const [rows]: any = await connection.execute(
+        "SELECT `DocumentID`, `DocumentName` FROM `Documents` WHERE `MaterialID` = ?",
+        [namespaceId]
+      );
+      await connection.end();
 
-      const allFiles: FileDetail[] = [];
-      for (const documentId of documentDirs) {
-        const documentPath = path.join(namespacePath, documentId);
-        const files = fs.readdirSync(documentPath);
-        allFiles.push(
-          ...files.map((filename) => ({
-            documentId: documentId,
-            name: filename,
-            url: this.constructFileUrl(
-              `${namespaceId}/${documentId}/${filename}`
-            ),
-          }))
-        );
+      if (rows.length === 0) {
+        return []; // Return an empty array if no files are found
       }
+
+      const allFiles: FileDetail[] = rows.map((row: any) => ({
+        documentId: row.DocumentID,
+        name: row.DocumentName,
+        url: this.constructFileUrl(`${namespaceId}/${row.DocumentID}/${row.DocumentName}`),
+      }));
+
       return allFiles;
     } catch (error) {
       console.error(
         "Failed to list files in namespace from server storage:",
         error
       );
+      await connection.end();
       throw error;
     }
   }
