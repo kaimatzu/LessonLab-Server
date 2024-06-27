@@ -20,7 +20,8 @@ async function processFile(
   documentData: Buffer,
   documentId: string,
   materialId: string, 
-): Promise<{ confirmation: string; wordCount: number; error?: string }> {
+): Promise<{ confirmation: string; documentContent: string, wordCount: number; error?: string }> {
+  console.log("Process file")
   try {
     let documentContent = "";
     if (documentType === "application/pdf") {
@@ -51,7 +52,7 @@ async function processFile(
     // await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [documentContent, documentType, documentName, documentId, materialId]);
     // await connection.end();
     
-    return { confirmation: "Success", wordCount };
+    return { confirmation: "Success", documentContent, wordCount };
   } catch (error: any) {
     console.error(
       "An error occurred while processing the document:",
@@ -64,54 +65,43 @@ async function processFile(
 /**
  * Chunks the content into smaller pieces and embeds them using the embedChunks function.
  * @param documentId - The ID of the document.
+ * @param documentContent - The content of the document to chunk and embed.
  * @returns A promise that resolves to an object containing the processed document.
  * @throws If there is an error in chunking and embedding the document.
  */
 async function chunkAndEmbedFile(
-  documentId: string,
+  documentId: string, documentContent: string,
 ): Promise<{ document: Document }> {
-  try {
-    const connection = await getDbConnection();
-    const [rows]: any = await connection.execute("SELECT * FROM `Documents` WHERE `DocumentID` = ?", [documentId]);
-    await connection.end();
+  try {  
+    // Convert LONGBLOB document data to string.
+    const content = documentContent;
+
+    // console.log("File content: ", content);
+
+    const document: Document = {
+      documentId,
+      chunks: [],
+    };
     
-    if (rows.length > 0) {
-      const documentDataBuffer = rows[0].DocumentData;
-            
-      // Convert LONGBLOB document data to string.
-      const content = documentDataBuffer.toString('utf-8');
+    // console.log("content -> ", content);
+    // Pick a chunking strategy (this will depend on the use case and the desired chunk size!)
+    const chunks = chunkTextByMultiParagraphs(content);
 
-      console.log("File content: ", content);
+    // Embed the chunks using the embedChunks function
+    const embeddings = await embedChunks(chunks);
 
-      const document: Document = {
-        documentId,
-        chunks: [],
-      };
-      
-      // console.log("content -> ", content);
-      // Pick a chunking strategy (this will depend on the use case and the desired chunk size!)
-      const chunks = chunkTextByMultiParagraphs(content);
-
-      // Embed the chunks using the embedChunks function
-      const embeddings = await embedChunks(chunks);
-
-      // Combine the chunks and their corresponding embeddings
-      // Construct the id prefix using the documentId and the chunk index
-      for (let i = 0; i < chunks.length; i++) {
-        document.chunks.push({
-          id: `${document.documentId}:${i}`,
-          values: embeddings[i].embedding,
-          text: chunks[i],
-        });
-      }
-      console.log("->")
-
-      return { document };
+    // Combine the chunks and their corresponding embeddings
+    // Construct the id prefix using the documentId and the chunk index
+    for (let i = 0; i < chunks.length; i++) {
+      document.chunks.push({
+        id: `${document.documentId}:${i}`,
+        values: embeddings[i].embedding,
+        text: chunks[i],
+      });
     }
-    else {
-      throw new Error('No content found from database!');
-    }
+    console.log("->")
 
+    return { document };
   } catch (error) {
     console.error("Error in chunking and embedding document:", error);
     throw error;

@@ -1,11 +1,10 @@
 /**
  * Material is the lesson or quiz
  */
-import { Errors } from "@pinecone-database/pinecone";
 import { Request, Response } from "express";
-import { off } from "process";
 import { getDbConnection } from "../utils/storage/database";
 import { v4 as uuidv4 } from "uuid";
+import jwt from 'jsonwebtoken';
 
 class MaterialsController {
 
@@ -24,14 +23,21 @@ class MaterialsController {
    */
   async createMaterial(req: Request, res: Response) {
     const { materialName, materialType } = req.body
-    const userId = req.params.userId
+
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
 
     const materialId = uuidv4()
     
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('INSERT INTO Materials (`MaterialID`, `MaterialName`, `MaterialType`, `UserID`) VALUES (?, ?, ?, ?)', [materialId, materialName, materialType, userId])
-      let header = result[0]
+      let result: any = await connection.execute('INSERT INTO Materials (`MaterialID`, `MaterialName`, `MaterialType`, `UserID`) VALUES (?, ?, ?, ?)', [materialId, materialName, materialType, decoded.userId])
+      // let header = result[0]
 
       result = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [materialId])
       const rows = result[0]

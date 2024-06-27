@@ -22,10 +22,12 @@ export class ServerStorage implements StorageService {
 
     const destinationPath = path.join(documentDirectory, fileName);
     await fs.promises.rename(file.path, destinationPath);
-
-    // const connection = await getDbConnection();
-    // await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, file.filename, documentId, namespaceId]);
-    // await connection.end();
+    
+    console.log("Save file SQL params: ", [file.buffer, file.mimetype, file.filename, documentId, namespaceId]);
+    
+    const connection = await getDbConnection();
+    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, file.filename, documentId, namespaceId]);
+    await connection.end();
   }
 
   constructFileUrl(fileKey: string): string {

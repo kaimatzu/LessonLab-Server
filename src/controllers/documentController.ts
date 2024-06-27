@@ -10,10 +10,12 @@ import multer from "multer";
 import path from "path";
 import { Document, DocumentModel } from "../models/documentModel";
 import { v4 as uuidv4 } from "uuid";
-import { storageService } from "../utils/storage/storage";
+import storageService from "../utils/services/storageService";
+import workerService from "../utils/services/workerService";
 import { ServerStorage } from "../utils/storage/serverStorage";
 import { SpacesStorage } from "../utils/storage/spacesStorage";
 import { upload } from "../utils/multer";
+import jwt from 'jsonwebtoken';
 
 class DocumentsController {
   private documentModel: DocumentModel;
@@ -68,6 +70,16 @@ class DocumentsController {
     upload(req, res, async (err) => {
       // This is effectively the ID of the workspace / tenant
       let namespaceId = req.body.namespaceId;
+
+      
+      const token = req.cookies.authToken;
+
+      if (!token) {
+        return res.status(403).json({ message: 'No token provided' });
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
+
       if (err instanceof multer.MulterError) {
         console.error("Multer error:", err);
         return res.status(400).json({ message: err.message });
@@ -98,51 +110,59 @@ class DocumentsController {
 
       const workerPromises = files.map((file) => {
         return new Promise<Document>((resolve, reject) => {
-          const documentId = uuidv4();
-          const fileKey = `${namespaceId}/${documentId}/${file.originalname}`;
-          const documentUrl = storageService.constructFileUrl(fileKey);
+          // const documentId = uuidv4();
+          // const fileKey = `${namespaceId}/${documentId}/${file.originalname}`;
+          // const documentUrl = storageService.constructFileUrl(fileKey);
+      
+          // const workerPath = path.join(__dirname, "../utils/workers/fileProcessorWorker");
+          // const worker = new Worker(workerPath, {
+          //   workerData: {
+          //     documentData: fs.readFileSync(file.path), // Pass the file data to the worker
+          //     documentType: file.mimetype,
+          //     documentName: file.originalname,
+          //     documentId,
+          //     documentUrl, 
+          //     materialId: namespaceId,
+          //   },
+          // });
+          
+          workerService.setDocumentData(decoded.userId, file, namespaceId);
 
-          const documentData = fs.readFileSync(file.path);
-          const materialId = namespaceId;
-
-          // Save the file to storage
-          storageService
-            .saveFile(file, fileKey)
-            .then(() => {
-              const workerPath = path.join(
-                __dirname,
-                "../utils/workers/fileProcessorWorker"
-              );
-              const worker = new Worker(workerPath, {
-                workerData: {
-                  documentData,
-                  documentType: file.mimetype,
-                  documentName: file.originalname,
-                  documentId,
-                  documentUrl, 
-                  materialId,
-                },
-              });
-
-              console.log("LOG: ", documentId)
-              console.log("LOG:", documentUrl)
-              worker.on("message", (result: any) => {
-                if (result.error) {
-                  reject(new Error(result.error));
-                } else {
+          const worker = workerService.getWorker(decoded.userId);
+          if (!worker) {
+            return reject(new Error("Worker is not initialized"));
+          }
+      
+          worker.on("message", (result: any) => {
+            if (result.error) {
+              reject(new Error(result.error));
+            } else {
+              // console.log(result.documentContent)
+              // Update the file buffer with the processed document data
+              file.buffer = Buffer.from(result.documentData);
+      
+              // Save the file to storage
+              const fileKey = workerService.getFileKey(decoded.userId);
+              if (!fileKey) {
+                return reject(new Error("File key not found"));
+              }
+              storageService
+                .saveFile(file, fileKey)
+                .then(() => {
                   resolve(result.document);
-                }
-              });
-
-              worker.on("error", (error: Error) => {
-                reject(error);
-              });
-            })
-            .catch((error) => {
-              reject(error);
-            });
+                })
+                .catch((error) => {
+                  reject(error);
+                });
+            }
+          });
+      
+          worker.on("error", (error: Error) => {
+            reject(error);
+          });
         });
       });
+      
 
       try {
         const documents = await Promise.all(workerPromises);

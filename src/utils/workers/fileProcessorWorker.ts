@@ -5,7 +5,7 @@ async function processFileWorker() {
   const { documentData, documentType, documentName, documentId, documentUrl, materialId } = workerData;
 
   try {
-    const { confirmation } = await processFile(
+    const { confirmation, documentContent } = await processFile(
       documentName,
       documentType,
       documentData,
@@ -16,10 +16,10 @@ async function processFileWorker() {
     if (confirmation === "Success") {
       const { document } = await chunkAndEmbedFile(
         documentId,
+        documentContent
         // documentUrl,
-        // documentContent
-      );
-      parentPort?.postMessage({ document });
+      ); 
+      parentPort?.postMessage({ document, documentData });
     }
     else {
       throw new Error('Failed to process file!');
