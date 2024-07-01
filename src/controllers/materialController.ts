@@ -82,15 +82,35 @@ class MaterialsController {
    * @param res The response data
    */
   async getMaterials(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
+
+    let connection;
     try {
-      const connection = await getDbConnection()
-      const result: any = await connection.execute('SELECT * FROM Materials')
+      connection = await getDbConnection();
+    } catch (error) {
+      console.error('Error getting DB connection:', error);
+      return res.status(500).json({ error: 'DB connection error' });
+    }
+  
+    try {
+      const result: any = await connection.execute('SELECT * FROM Materials WHERE UserID = ?', [decoded.userId]).catch(error => {
+        console.error('Error executing query:', error);
+        return res.status(500).json({ error: 'DB query execution error' });
+      });
+
       const rows = result[0]
-      await connection.end()
+      await connection.end().catch(error => {
+        console.error('Error closing DB connection:', error);
+      });
 
       if (rows.length === 0) {
-        res.status(204).send()
-        return
+        return res.status(200).json([]); // Return an empty JSON array if no materials are found
       }
 
       return res.status(200).json(rows)
