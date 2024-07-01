@@ -36,15 +36,52 @@ class MaterialsController {
     
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('INSERT INTO Materials (`MaterialID`, `MaterialName`, `MaterialType`, `UserID`) VALUES (?, ?, ?, ?)', [materialId, materialName, materialType, decoded.userId])
-      // let header = result[0]
+      await connection.execute(
+        'INSERT INTO Materials (`MaterialID`, `MaterialName`, `UserID`) VALUES (?, ?, ?)', 
+        [materialId, materialName, decoded.userId])
 
-      result = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [materialId])
-      const rows = result[0]
-      const material = rows[0]
+      let entryId: string;
 
-      await connection.end()
-      return res.status(201).json(material)
+      // Insert into Lessons or Quizzes table based on materialType
+      if (materialType === 'LESSON') {
+        entryId = uuidv4();
+        await connection.execute(
+          'INSERT INTO Lessons (LessonID, MaterialID) VALUES (?, ?)',
+          [entryId, materialId]
+        );
+      } else if (materialType === 'QUIZ') {
+        entryId = uuidv4();
+        await connection.execute(
+          'INSERT INTO Quizzes (QuizID, MaterialID) VALUES (?, ?)',
+          [entryId, materialId]
+        );
+      } else {
+        await connection.end();
+        return res.status(400).json({ message: 'Invalid material type' });
+      }
+
+    // Retrieve the created material and corresponding entry
+    const query = `
+      SELECT 
+        m.MaterialID, 
+        m.MaterialName, 
+        CASE 
+          WHEN l.MaterialID IS NOT NULL THEN 'LESSON'
+          WHEN q.MaterialID IS NOT NULL THEN 'QUIZ'
+          ELSE 'UNKNOWN'
+        END AS MaterialType,
+        m.UserID
+      FROM Materials m
+      LEFT JOIN Lessons l ON m.MaterialID = l.MaterialID
+      LEFT JOIN Quizzes q ON m.MaterialID = q.MaterialID
+      WHERE m.MaterialID = ?
+    `;
+
+    const rows: any = await connection.execute(query, [materialId]);
+    const material = rows[0];
+
+    await connection.end();
+    return res.status(201).json(material[0]);
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error. ' + error })
@@ -99,24 +136,40 @@ class MaterialsController {
     }
   
     try {
-      const result: any = await connection.execute('SELECT * FROM Materials WHERE UserID = ?', [decoded.userId]).catch(error => {
+      const query = `
+        SELECT 
+          m.MaterialID, 
+          m.MaterialName, 
+          m.UserID,
+          CASE 
+            WHEN l.MaterialID IS NOT NULL THEN 'LESSON'
+            WHEN q.MaterialID IS NOT NULL THEN 'QUIZ'
+            ELSE 'UNKNOWN'
+          END AS MaterialType
+        FROM Materials m
+        LEFT JOIN Lessons l ON m.MaterialID = l.MaterialID
+        LEFT JOIN Quizzes q ON m.MaterialID = q.MaterialID
+        WHERE m.UserID = ?
+        ORDER BY m.CreatedAt DESC
+      `;
+  
+      const rows: any = await connection.execute(query, [decoded.userId]).catch(error => {
         console.error('Error executing query:', error);
         return res.status(500).json({ error: 'DB query execution error' });
       });
-
-      const rows = result[0]
+  
       await connection.end().catch(error => {
         console.error('Error closing DB connection:', error);
       });
-
+  
       if (rows.length === 0) {
         return res.status(200).json([]); // Return an empty JSON array if no materials are found
       }
 
-      return res.status(200).json(rows)
+      return res.status(200).json(rows[0]);
     } catch (error) {
-      console.error(error)
-      return res.status(500).json({ error: 'DB connection error' })
+      console.error(error);
+      return res.status(500).json({ error: 'DB connection error' });
     }
   }
 
