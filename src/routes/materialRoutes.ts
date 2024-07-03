@@ -11,7 +11,7 @@ router.delete('/:materialId', materialController.deleteMaterial)
 
 router.get('/specifications/:materialId', materialController.getSpecifications)
 router.post('/specifications', materialController.insertSpecification);
-router.delete('/specifications/:materialId/:specificationId', materialController.deleteSpecification);
+router.delete('/specifications/:MaterialID/:SpecificationID', materialController.deleteSpecification);
 router.patch('/specifications/update/name', materialController.updateSpecificationName)
 router.patch('/specifications/update/topic', materialController.updateSpecificationTopic)
 router.patch('/specifications/update/comprehensionlevel', materialController.updateSpecificationComprehensionLevel)

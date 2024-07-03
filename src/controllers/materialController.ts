@@ -295,7 +295,7 @@ class MaterialsController {
     try {
       const connection = await getDbConnection();
       const [rows] = await connection.execute(
-        `SELECT * FROM Specifications WHERE MaterialID = ? ORDER BY CreatedAt DESC`,
+        `SELECT * FROM Specifications WHERE MaterialID = ? ORDER BY CreatedAt`,
         [materialId]
       );
 
@@ -372,9 +372,9 @@ class MaterialsController {
       return res.status(403).json({ message: 'Invalid token' });
     }
 
-    const { materialId, specificationId } = req.params;
+    const { MaterialID, SpecificationID } = req.params;
 
-    if (!specificationId || !materialId) {
+    if (!SpecificationID || !MaterialID) {
       return res.status(400).json({ message: 'Specification ID and Material ID are required' });
     }
 
@@ -384,7 +384,7 @@ class MaterialsController {
       // Check if there are multiple specifications associated with the material
       const [specifications]: any = await connection.execute(
         `SELECT COUNT(*) as count FROM Specifications WHERE MaterialID = ?`,
-        [materialId]
+        [MaterialID]
       );
 
       const count = specifications[0].count;
@@ -396,7 +396,7 @@ class MaterialsController {
 
       await connection.execute(
         `DELETE FROM Specifications WHERE SpecificationID = ?`,
-        [specificationId]
+        [SpecificationID]
       );
 
       await connection.end();
