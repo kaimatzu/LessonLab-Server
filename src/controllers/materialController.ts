@@ -17,6 +17,7 @@ class MaterialsController {
     this.deleteMaterial = this.deleteMaterial.bind(this)
 
     this.getSpecifications = this.getSpecifications.bind(this)
+    this.insertSpecification = this.insertSpecification.bind(this)
     this.updateSpecificationName = this.updateSpecificationName.bind(this)
     this.updateSpecificationTopic = this.updateSpecificationTopic.bind(this)
     this.updateSpecificationComprehensionLevel = this.updateSpecificationComprehensionLevel.bind(this)
@@ -305,6 +306,107 @@ class MaterialsController {
       return res.status(500).json({ message: 'Internal Server Error' });
     }
   }
+
+/**
+ * Inserts a new Specification associated with a given Material.
+ *
+ * @param req - The request object.
+ * @param res - The response object.
+ */
+  async insertSpecification(req: Request, res: Response) {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { MaterialID } = req.body;
+
+    if (!MaterialID) {
+      return res.status(400).json({ message: 'Material ID is required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      const SpecificationID = uuidv4();
+      await connection.execute(
+        'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `MaterialID`) VALUES (?, ?, ?, ?, ?, ?)', 
+        [SpecificationID, '', '', 'Elementary', 'Simple', MaterialID]);
+
+
+      await connection.end();
+      return res.status(201).json({ message: 'Specification inserted successfully', SpecificationID: SpecificationID });
+    } catch (error) {
+      console.error('Error inserting specification:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+/**
+ * Deletes a Specification associated with a given Material.
+ * Prevents deleting if it is the last specification associated with the Material.
+ *
+ * @param req - The request object.
+ * @param res - The response object.
+ */
+  async deleteSpecification(req: Request, res: Response) {
+    if (req.method !== 'DELETE') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { materialId, specificationId } = req.params;
+
+    if (!specificationId || !materialId) {
+      return res.status(400).json({ message: 'Specification ID and Material ID are required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      
+      // Check if there are multiple specifications associated with the material
+      const [specifications]: any = await connection.execute(
+        `SELECT COUNT(*) as count FROM Specifications WHERE MaterialID = ?`,
+        [materialId]
+      );
+
+      const count = specifications[0].count;
+
+      if (count <= 1) {
+        await connection.end();
+        return res.status(400).json({ message: 'Cannot delete the last specification associated with the material' });
+      }
+
+      await connection.execute(
+        `DELETE FROM Specifications WHERE SpecificationID = ?`,
+        [specificationId]
+      );
+
+      await connection.end();
+      return res.status(200).json({ message: 'Specification deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting specification:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
 
 /**
  * Updates the name for a given specification.
@@ -661,42 +763,6 @@ class MaterialsController {
     }
   }
 
-/**
- * Deletes the specification for a given material.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
-  async deleteSpecification(req: Request, res: Response) {
-    const { SpecificationID, MaterialID } = req.body;
-
-    const connection = await getDbConnection();
-    try {
-      
-      await connection.beginTransaction();
-
-      // Delete additional specifications
-      await connection.execute(
-        'DELETE FROM AdditionalSpecifications WHERE SpecificationID = ?',
-        [SpecificationID]
-      );
-
-      // Delete the specification
-      await connection.execute(
-        'DELETE FROM Specifications WHERE MaterialID = ? AND SpecificationID = ?',
-        [MaterialID, SpecificationID]
-      );
-
-      await connection.commit();
-      await connection.end();
-
-      return res.status(200).json({ message: 'Specification deleted successfully' });
-    } catch (error) {
-      console.error("Error deleting specification:", error);
-      if (connection) await connection.rollback();
-      return res.status(500).json({ error: 'DB connection error' });
-    }
-  }
 }
 
 export default new MaterialsController();

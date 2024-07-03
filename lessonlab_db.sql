@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 03, 2024 at 08:14 AM
+-- Generation Time: Jul 03, 2024 at 03:25 PM
 -- Server version: 8.0.37-0ubuntu0.22.04.3
 -- PHP Version: 8.2.4
 
@@ -40,7 +40,8 @@ CREATE TABLE `AdditionalSpecifications` (
 --
 
 INSERT INTO `AdditionalSpecifications` (`AdditionalSpecID`, `SpecificationID`, `SpecificationText`, `PrevID`, `NextID`) VALUES
-('362916b0-5435-41c5-a3a5-59646ae737e7', '4f436a28-146b-4923-b8ed-0c1c5842a375', 'hhhh', NULL, NULL);
+('362916b0-5435-41c5-a3a5-59646ae737e7', '4f436a28-146b-4923-b8ed-0c1c5842a375', 'hhhh', NULL, NULL),
+('d3eaeaf7-3fc1-491a-a09e-1002bd67a440', '573b9b82-9d4b-45ce-aaf9-999d3e49cda4', 'BAbadsdbasd', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -194,10 +195,10 @@ INSERT INTO `Quizzes` (`QuizID`, `MaterialID`) VALUES
 
 CREATE TABLE `Specifications` (
   `SpecificationID` char(36) NOT NULL,
-  `Name` varchar(255) NOT NULL,
-  `Topic` varchar(255) NOT NULL,
-  `WritingLevel` enum('Elementary','High-school','College','Professional') NOT NULL,
-  `ComprehensionLevel` enum('Simple','Standard','Comprehensive') NOT NULL,
+  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `Topic` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `WritingLevel` enum('Elementary','High-school','College','Professional') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Elementary',
+  `ComprehensionLevel` enum('Simple','Standard','Comprehensive') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Simple',
   `CreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `MaterialID` char(36) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -207,8 +208,13 @@ CREATE TABLE `Specifications` (
 --
 
 INSERT INTO `Specifications` (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `CreatedAt`, `MaterialID`) VALUES
-('4f436a28-146b-4923-b8ed-0c1c5842a375', 'Update', 'Topic', 'College', 'Standard', '2024-07-02 09:09:46', '0b2d0251-a469-419f-bfd0-035664256a78'),
-('da196736-6d6a-4ecb-b6f7-8f193953798d', 'HASHDAKJQW', '', 'Elementary', 'Simple', '2024-07-02 13:47:35', '67d30e08-11ae-4a04-9c86-3b2cf23a16de');
+('1b3eab99-b5c5-45ea-b278-86db104a1bf7', 'Test', '', 'Elementary', 'Simple', '2024-07-03 13:19:06', '0b2d0251-a469-419f-bfd0-035664256a78'),
+('23a40a15-e1d7-4d4f-889b-ec4baf35b409', '', '', 'Elementary', 'Simple', '2024-07-03 13:24:56', '67d30e08-11ae-4a04-9c86-3b2cf23a16de'),
+('4f436a28-146b-4923-b8ed-0c1c5842a375', 'Smmms', 'Topic', 'College', 'Standard', '2024-07-02 09:09:46', '0b2d0251-a469-419f-bfd0-035664256a78'),
+('573b9b82-9d4b-45ce-aaf9-999d3e49cda4', 'Mic test', 'Omg that\'s my baby', 'Elementary', 'Simple', '2024-07-03 13:24:04', '0b2d0251-a469-419f-bfd0-035664256a78'),
+('8a4d8765-0d0a-4272-8189-d4c996b283e7', 'Hahahaha', 'ASdljnaslda', 'Elementary', 'Simple', '2024-07-03 13:20:45', '0b2d0251-a469-419f-bfd0-035664256a78'),
+('da196736-6d6a-4ecb-b6f7-8f193953798d', 'HASHDAKJQW', '', 'Elementary', 'Simple', '2024-07-02 13:47:35', '67d30e08-11ae-4a04-9c86-3b2cf23a16de'),
+('da774ffb-c487-4bf4-8dcf-94ef8cdd144a', 'Amineeeeeeeeeeeeee', '', 'Elementary', 'Simple', '2024-07-03 13:24:56', '67d30e08-11ae-4a04-9c86-3b2cf23a16de');
 
 -- --------------------------------------------------------
 

@@ -9,8 +9,9 @@ router.get('', materialController.getMaterials)
 router.patch('/:materialId', materialController.updateMaterial)
 router.delete('/:materialId', materialController.deleteMaterial)
 
-// router.post('/specifications/set', materialController.setSpecification)
 router.get('/specifications/:materialId', materialController.getSpecifications)
+router.post('/specifications', materialController.insertSpecification);
+router.delete('/specifications/:materialId/:specificationId', materialController.deleteSpecification);
 router.patch('/specifications/update/name', materialController.updateSpecificationName)
 router.patch('/specifications/update/topic', materialController.updateSpecificationTopic)
 router.patch('/specifications/update/comprehensionlevel', materialController.updateSpecificationComprehensionLevel)
@@ -19,7 +20,7 @@ router.get('/specifications/additionalspecifications/:SpecificationID', material
 router.post('/specifications/additionalspecifications', materialController.insertAdditionalSpecification)
 router.patch('/specifications/additionalspecifications', materialController.updateAdditionalSpecification)
 router.delete('/specifications/additionalspecifications/:AdditionalSpecID', materialController.removeAdditionalSpecification)
-router.delete('/specifications/delete', materialController.deleteSpecification)
+// router.delete('/specifications/delete', materialController.deleteSpecification)
 
 
 export default router;
