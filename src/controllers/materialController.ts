@@ -27,6 +27,12 @@ class MaterialsController {
     this.insertAdditionalSpecification = this.insertAdditionalSpecification.bind(this)
     this.updateAdditionalSpecification = this.updateAdditionalSpecification.bind(this)
     this.rearrangeAdditionalSpecification = this.rearrangeAdditionalSpecification.bind(this)
+
+    this.createLessonPage = this.createLessonPage.bind(this) 
+    this.getLessonPages = this.getLessonPages.bind(this)
+    this.updatePageTitle = this.updatePageTitle.bind(this)
+    this.updatePageContent = this.updatePageContent.bind(this)
+    this.deleteLessonPage = this.deleteLessonPage.bind(this)
   }
 
   /**
@@ -760,6 +766,257 @@ class MaterialsController {
     } catch (error) {
       console.error('Error rearranging additional specification:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  //////////////////////////////////////
+  ////////      Lesson Pages     ///////
+  //////////////////////////////////////
+
+/**
+ * Handles the creation of new Lesson Pages.
+ *
+ * @param req - The request object.
+ * @param res - The response object.
+ */
+  async createLessonPage(req: Request, res: Response) {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { LessonID, LastPageID } = req.body;
+
+    if (!LessonID) {
+      return res.status(400).json({ message: 'Lesson ID is required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      const PageID = uuidv4();
+      
+      if (LastPageID) {
+        // Insert new page with PrevID as LastPageID
+        await connection.execute(
+          'INSERT INTO Pages (PageID, PageTitle, Content, LessonID, PrevID) VALUES (?, ?, ?, ?, ?)',
+          [PageID, '', '', LessonID, LastPageID]
+        );
+
+        // Update the previous page's NextID to the new page ID
+        await connection.execute(
+          'UPDATE AdditionalSpecifications SET NextID = ? WHERE AdditionalSpecID = ?',
+          [PageID, LastPageID]
+        );
+      } else {
+        // Insert new page with PrevID and NextID as null (first in the list)
+        await connection.execute(
+          'INSERT INTO Pages (PageID, PageTitle, Content, LessonID, PrevID, NextID) VALUES (?, ?, ?, ?, NULL, NULL)',
+          [PageID, '', '', LessonID]
+        );
+      }
+
+      await connection.end();
+      return res.status(201).json({ message: 'Page inserted successfully', PageID: PageID });
+    } catch (error) {
+      console.error('Error inserting specification:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+/**
+ * Retrieves all Pages of a Lesson.
+ * 
+ * @param req The request object
+ * @param res The response data
+ */
+  async getLessonPages(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+    
+    const { lessonId } = req.params;
+
+    let connection;
+    try {
+      connection = await getDbConnection();
+    } catch (error) {
+      console.error('Error getting DB connection:', error);
+      return res.status(500).json({ error: 'DB connection error' });
+    }
+  
+    try {
+      const rows: any = await connection.execute(
+        `SELECT * FROM Pages WHERE LessonID = ? ORDER BY PrevID`, 
+        [lessonId]).catch(error => {
+        console.error('Error executing query:', error);
+        return res.status(500).json({ error: 'DB query execution error' });
+      });
+  
+      await connection.end().catch(error => {
+        console.error('Error closing DB connection:', error);
+      });
+  
+      if (rows.length === 0) {
+        return res.status(200).json([]); // Return an empty JSON array if no pages are found
+      }
+
+      return res.status(200).json(rows[0]);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: 'DB connection error' });
+    }
+  }
+
+/**
+ * Updates the title of a specific lesson page.
+ * 
+ * @param req The request object, expected to contain the pageId, new title, and the lessonId.
+ * @param res The response object.
+ */
+  async updatePageTitle(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+    if (!token) {
+        return res.status(403).json({ message: 'No token provided' });
+    }
+
+    try {
+        jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    } catch (error) {
+        return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { pageId, lessonId, newTitle } = req.body;
+    if (!pageId || !lessonId || !newTitle) {
+        return res.status(400).json({ message: 'Page ID, Lesson ID, and New Title are required' });
+    }
+
+    try {
+        const connection = await getDbConnection();
+        await connection.execute(
+            `UPDATE Pages SET PageTitle = ? WHERE PageID = ? AND LessonID = ?`,
+            [newTitle, pageId, lessonId]
+        );
+
+        await connection.end();
+        return res.status(200).json({ message: 'Page title updated successfully' });
+    } catch (error) {
+        console.error('Error updating page title:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+/**
+ * Updates the content of a specific lesson page.
+ * 
+ * @param req The request object, expected to contain the pageId, new content, and the lessonId.
+ * @param res The response object.
+ */
+  async updatePageContent(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+    if (!token) {
+        return res.status(403).json({ message: 'No token provided' });
+    }
+
+    try {
+        jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    } catch (error) {
+        return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { pageId, lessonId, newContent } = req.body;
+    console.log(pageId, lessonId, newContent)
+    
+    if (!pageId || !lessonId || !newContent) {
+        return res.status(400).json({ message: 'Page ID, Lesson ID, and New Content are required' });
+      }
+
+    try {
+        const connection = await getDbConnection();
+        await connection.execute(
+            `UPDATE Pages SET Content = ? WHERE PageID = ? AND LessonID = ?`,
+            [newContent, pageId, lessonId]
+        );
+
+        await connection.end();
+        return res.status(200).json({ message: 'Page content updated successfully' });
+    } catch (error) {
+        console.error('Error updating page content:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+/**
+ * Retrieves all Pages of a Lesson.
+ * 
+ * @param req The request object
+ * @param res The response data
+*/
+  async deleteLessonPage(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    // Check for authorization token
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    } catch (error) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    const { lessonId, pageId } = req.params;
+    let connection;
+
+    try {
+      connection = await getDbConnection();
+      // Begin transaction to handle operations safely
+      await connection.beginTransaction();
+
+      const [page]: any = await connection.execute(
+        `SELECT * FROM Pages WHERE PageID = ? AND LessonID = ?`, 
+        [pageId, lessonId]
+      );
+
+      if (page.length === 0) {
+        await connection.rollback(); 
+        return res.status(404).json({ message: 'Page not found' });
+      }
+
+      // Proceed to delete the page
+      await connection.execute(
+        `DELETE FROM Pages WHERE PageID = ? AND LessonID = ?`, 
+        [pageId, lessonId]
+      );
+
+      await connection.commit();
+      return res.status(200).json({ message: 'Page deleted successfully' });
+    } catch (error) {
+      console.error('Database error:', error);
+      if (connection) {
+        await connection.rollback(); 
+      }
+      return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      if (connection) {
+        await connection.end();
+      }
     }
   }
 

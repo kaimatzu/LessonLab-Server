@@ -20,7 +20,12 @@ router.get('/specifications/additionalspecifications/:SpecificationID', material
 router.post('/specifications/additionalspecifications', materialController.insertAdditionalSpecification)
 router.patch('/specifications/additionalspecifications', materialController.updateAdditionalSpecification)
 router.delete('/specifications/additionalspecifications/:AdditionalSpecID', materialController.removeAdditionalSpecification)
-// router.delete('/specifications/delete', materialController.deleteSpecification)
+
+router.post('/lessons/pages', materialController.createLessonPage)
+router.get('/lessons/pages/:lessonId', materialController.getLessonPages)
+router.patch('/lessons/pages/update/title', materialController.updatePageTitle)
+router.patch('/lessons/pages/update/content', materialController.updatePageContent)
+router.delete('/lessons/pages/:lessonId/:pageId', materialController.deleteLessonPage)
 
 
 export default router;
