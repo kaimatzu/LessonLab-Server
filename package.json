@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon --exec \"node --max-old-space-size=4096\" -r ts-node/register dist/index.js",
     "dev": "nodemon --exec \"node --max-old-space-size=4096\" -r ts-node/register src/index.ts",
-    "build": "npm install --include=dev && npx tsc --outDir dist"
+    "build": "npm install --include=dev && npx tsc --outDir dist",
+    "ngrok": "ngrok http 4001"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +39,7 @@
     "openai": "^4.29.0",
     "pdf-parse": "^1.1.1",
     "reflect-metadata": "^0.2.2",
+    "socket.io": "^4.7.5",
     "uuid": "^9.0.1",
     "uuidv4": "^6.2.13"
   },
