@@ -51,7 +51,13 @@ class UsersController {
         sameSite: 'strict',
         maxAge: TOKEN_MAX_AGE
       });
-  
+      
+      res.cookie('autoLoginToken', true, {
+        secure: true,
+        sameSite: 'strict',
+        maxAge: TOKEN_MAX_AGE
+      });
+      
       return res.status(201).json({
         user: {
           UserID: userId,
@@ -106,7 +112,13 @@ class UsersController {
         sameSite: 'strict', 
         maxAge: TOKEN_MAX_AGE
       });
-  
+      
+      res.cookie('autoLoginToken', true, {
+        secure: true,
+        sameSite: 'strict',
+        maxAge: TOKEN_MAX_AGE
+      });
+
       // Return user data excluding sensitive information
       const { UserID, UserType, Name, Email, Tokens } = user;
       return res.status(200).json({
