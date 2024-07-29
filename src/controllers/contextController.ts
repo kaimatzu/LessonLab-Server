@@ -22,12 +22,12 @@ class ContextController {
    */
   async fetchContext(req: Request, res: Response) {
     try {
-      const { namespaceId, messages } = req.body;
+      const { namespaceId, specifications, messages } = req.body;
 
       if (!namespaceId || !messages) {
         return res.status(400).send({ message: "Missing required fields" });
       }
-      const context = await createPrompt(messages, namespaceId);
+      const context = await createPrompt(messages, namespaceId, specifications);
 
       res.status(200).send({ query: messages[messages.length - 1], context });
     } catch (error) {

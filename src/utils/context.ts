@@ -18,8 +18,10 @@ export const getContext = async (
     const embedding = embeddings[0].embedding;
 
     const matches = await getMatchesFromEmbeddings(embedding, 15, namespace);
-    const qualifyingDocs = matches.filter((m) => m.score && m.score > minScore);
-
+    console.log("Matches:", matches);
+    // const qualifyingDocs = matches.filter((m) => m.score && m.score > minScore); // Disable until better strategy is found
+    const qualifyingDocs = matches;
+    console.log("Qualifying docs:", qualifyingDocs);
     if (!getOnlyText) {
       return qualifyingDocs;
     }

@@ -1,6 +1,6 @@
 import { getContext } from "./context";
 
-export async function createPrompt(messages: any[], namespaceId: string) {
+export async function createPrompt(messages: any[], namespaceId: string, specifications: string) {
   console.log("Creating Prompt...")
   try {
     // Get the last message
@@ -9,9 +9,16 @@ export async function createPrompt(messages: any[], namespaceId: string) {
     // Get the context from the last message
     const context = await getContext(lastMessage, namespaceId);
 
+    console.log("Message:", lastMessage);
+    console.log("Namespace ID", namespaceId);
+    console.log("Context:", context);
+    
     // Get the material specifications
-    // const specifications = await getContext(lastMessage, namespaceId);
-    const specifications = "[]";
+    if (!specifications) {
+      specifications = "[]";
+    }
+    
+    console.log("Specifications:", specifications);
 
     const prompt = [
       {

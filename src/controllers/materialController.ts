@@ -940,7 +940,7 @@ class MaterialsController {
     }
 
     const { pageId, lessonId, newContent } = req.body;
-    console.log(pageId, lessonId, newContent)
+    console.log("Update page content:", pageId, lessonId, newContent)
     
     if (!pageId || !lessonId || !newContent) {
         return res.status(400).json({ message: 'Page ID, Lesson ID, and New Content are required' });
