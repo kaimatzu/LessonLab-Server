@@ -12,12 +12,12 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
     console.log("Message:", lastMessage);
     console.log("Namespace ID", namespaceId);
     console.log("Context:", context);
-    
+
     // Get the material specifications
     if (!specifications) {
       specifications = "[]";
     }
-    
+
     console.log("Specifications:", specifications);
 
     const prompt = [
@@ -61,21 +61,28 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
   }
 }
 
-export async function createQuizPrompt(messages: any[], namespaceId: string) {
+export async function createQuizPrompt(items: any[], namespaceId: string, specifications: string) {
   try {
+
+
     // Get the last message
-    const lastMessage = messages[messages.length - 1]["content"];
+    let lastMessage = []
+    if (items) {
+      lastMessage = items[items.length - 1]["content"];
+    }
 
     // Get the context from the last message
     const context = await getContext(lastMessage, namespaceId);
 
     // Get the material specifications
-    const specifications = await getContext(lastMessage, namespaceId);
+    if (!specifications) {
+      specifications = "[]";
+    }
 
     const prompt = [
       {
         role: "system",
-        content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a lesson material.
+        content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a quiz.
       DO NOT SHARE REFERENCE URLS
       AI assistant will not apologize for previous responses, but instead will indicated new information was gained.
       AI assistent will solely generate a quiz based on a structure
