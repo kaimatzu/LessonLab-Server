@@ -12,12 +12,12 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
     console.log("Message:", lastMessage);
     console.log("Namespace ID", namespaceId);
     console.log("Context:", context);
-    
+
     // Get the material specifications
     if (!specifications) {
       specifications = "[]";
     }
-    
+
     console.log("Specifications:", specifications);
 
     const prompt = [
@@ -61,29 +61,38 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
   }
 }
 
-export async function createQuizPrompt(messages: any[], namespaceId: string) {
+export async function createQuizPrompt(items: any[], namespaceId: string, specifications: string) {
   try {
+
+
     // Get the last message
-    const lastMessage = messages[messages.length - 1]["content"];
+    let lastMessage = '[]'
+    if (items) {
+      lastMessage = items[items.length - 1]["content"];
+    }
 
     // Get the context from the last message
     const context = await getContext(lastMessage, namespaceId);
 
     // Get the material specifications
-    const specifications = await getContext(lastMessage, namespaceId);
+    if (!specifications) {
+      specifications = "[]";
+    }
 
     const prompt = [
       {
         role: "system",
-        content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a lesson material.
+        content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a quiz.
       DO NOT SHARE REFERENCE URLS
-      AI assistant will not apologize for previous responses, but instead will indicated new information was gained.
+      AI assistant will not apologize for previous responses, but instead will indicate that new information was gained.
       AI assistent will solely generate a quiz based on a structure
       AI assistant will take into account any CONTEXT BLOCK that is provided in a conversation. It will say it does not know if the CONTEXT BLOCK is empty.
       AI assistant will not invent anything that is not drawn directly from the context.
       AI assistant will not answer questions that are not related to the context.
       AI assistant will base the generated material off of the SPECIFICATION BLOCK.
       AI assistant will generate a quiz material based on what the user will ask.
+      AI assistant will assume that the quiz taker has not read the CONTEXT BLOCK.
+      AI assistant will assume that the quiz taker do not know about the specifications.
       
       START CONTEXT BLOCK
       ${context}
