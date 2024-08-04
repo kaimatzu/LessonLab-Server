@@ -55,7 +55,7 @@ class ContextController {
 
       console.log('------>', namespaceId)
       console.log('------>', specifications)
-      console.log('------>', items) // undefined
+      console.log('------>', items)
 
       if (!namespaceId) {
         return res.status(400).send({ message: "Missing required fields" });
@@ -64,7 +64,7 @@ class ContextController {
 
       console.log("Context value:", context);
 
-      res.status(200).send({ context: context }); // mo error if undefined[0] <-- Error
+      res.status(200).send({ context: context });
     } catch (error) {
       console.error("Error fetching context:", error);
       res.status(500).send({ message: "Failed to fetch context" });
