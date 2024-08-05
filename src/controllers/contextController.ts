@@ -60,9 +60,14 @@ class ContextController {
       if (!namespaceId) {
         return res.status(400).send({ message: "Missing required fields" });
       }
-      const context = await createQuizPrompt(items, namespaceId, specifications);
+      let context
+      try {
+        context = await createQuizPrompt(items, namespaceId, specifications);
+      } catch (error) {
+        return res.status(500).send({ message: "Failed to connect to Pinecone API"})
+      }
 
-      console.log("Context value:", context);
+      console.log("Server: Context value:", context);
 
       res.status(200).send({ context: context });
     } catch (error) {

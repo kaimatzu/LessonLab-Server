@@ -7,7 +7,12 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
     const lastMessage = messages[messages.length - 1]["content"];
 
     // Get the context from the last message
-    const context = await getContext(lastMessage, namespaceId);
+    let context
+    try {
+      context = await getContext(lastMessage, namespaceId);
+    } catch (error) {
+      throw error
+    }
 
     console.log("Message:", lastMessage);
     console.log("Namespace ID", namespaceId);
@@ -72,7 +77,12 @@ export async function createQuizPrompt(items: any[], namespaceId: string, specif
     }
 
     // Get the context from the last message
-    const context = await getContext(lastMessage, namespaceId);
+    let context
+    try {
+      context = await getContext(lastMessage, namespaceId);
+    } catch (error) {
+      throw error
+    }
 
     // Get the material specifications
     if (!specifications) {
