@@ -8,7 +8,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from "dotenv";
 import 'reflect-metadata'
 
-import { Server as SocketIO }  from 'socket.io';
+import { Server as SocketIO } from 'socket.io';
 import http from 'http';
 
 import documentRoutes from "./routes/documentRoutes";
@@ -18,11 +18,13 @@ import materialRoutes from "./routes/materialRoutes";
 import classRoutes from "./routes/classRoutes";
 import enrollmentRoutes from "./routes/enrollmentRoutes";
 import transactionRoutes from "./routes/transactionRoutes";
+import exportRoutes from "./routes/exportRoutes";
 
 var memwatch = require("@airbnb/node-memwatch");
 
 // Define the path for the uploads directory
 const uploadsDir = path.join(__dirname, "..", "uploads");
+const exportsDir = path.join(__dirname, "..", "exports")
 
 if (process.env.NODE_ENV === "production") {
   console.log("Running in production mode");
@@ -37,6 +39,12 @@ if (process.env.NODE_ENV === "production") {
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
+
+// Create the 'quizzes' directory if it doesn't exist
+if (!fs.existsSync(exportsDir)) {
+  fs.mkdirSync(exportsDir)
+}
+
 dotenv.config();
 
 const corsOptions = {
@@ -52,6 +60,8 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(bodyParser.json());
 
+app.use('/exports', express.static(exportsDir))
+
 app.use("/api/documents", documentRoutes);
 app.use("/api/context", contextRoutes);
 app.use('/api/users', userRoutes);
@@ -59,6 +69,7 @@ app.use('/api/materials', materialRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/enrollments', enrollmentRoutes)
 app.use('/api/transactions', transactionRoutes)
+app.use('/api/exports', exportRoutes)
 
 app.post('/api/webhooks/paymongo', (req, res) => {
   console.log('Received webhook:', req.body);
@@ -106,14 +117,14 @@ io.on('connection', (socket) => {
     console.log("Submitting payment status data to:", roomId);
     io.in(roomId).emit("message", roomId);
     // socket.leave(roomId);
-  })  
+  })
 
   socket.on('disconnecting', () => {
     const rooms = Object.keys(socket.rooms);
     rooms.forEach((room) => {
-        socket.to(room).emit('user left', { message: 'User has left the room.' });
-        socket.leave(room);
-        console.log(`Room ${room} is being deleted after user disconnect.`);
+      socket.to(room).emit('user left', { message: 'User has left the room.' });
+      socket.leave(room);
+      console.log(`Room ${room} is being deleted after user disconnect.`);
     });
   });
 
@@ -121,10 +132,10 @@ io.on('connection', (socket) => {
     console.log("Rooms disconnect:", socket.rooms);
     const rooms = socket.rooms;
     rooms.forEach((id, room) => {
-        socket.to(room).emit('user left', { message: 'User has left the room.' });
-        socket.leave(room);
-        console.log(id, room)
-        console.log(`Room ${room} is being deleted after user disconnect.`);
+      socket.to(room).emit('user left', { message: 'User has left the room.' });
+      socket.leave(room);
+      console.log(id, room)
+      console.log(`Room ${room} is being deleted after user disconnect.`);
     });
     console.log('User disconnected');
   });

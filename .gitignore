@@ -1,4 +1,5 @@
 uploads
+exports
 .env
 .env.dist
 node_modules/
