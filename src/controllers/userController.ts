@@ -5,7 +5,7 @@ import { checkPassword, createJwtToken, generateHash } from "../utils/auth";
 import jwt from 'jsonwebtoken';
 import Cookies from 'cookies';
 
-const TOKEN_MAX_AGE = 60 * 60 * 1000; // 1 hour (change as needed)
+const TOKEN_MAX_AGE = 60 * 60 * 1000 * 24; // 24 hour (change as needed)
 
 class UsersController {
   constructor() {
@@ -41,7 +41,7 @@ class UsersController {
         [userId, userType, name, username, hashedPassword, email]
       );
   
-      const token = createJwtToken(userId, username, userType, name, email); 
+      const token = createJwtToken(userId, username, userType, name, email, TOKEN_MAX_AGE); 
   
       await connection.end();
   
@@ -101,7 +101,7 @@ class UsersController {
         return res.status(401).json({ message: 'Incorrect password' });
       }
   
-      const token = createJwtToken(user.UserID, user.Username, user.UserType, user.Name, user.Email); // Include UserType in the JWT token
+      const token = createJwtToken(user.UserID, user.Username, user.UserType, user.Name, user.Email, TOKEN_MAX_AGE);
   
       await connection.end();
   
