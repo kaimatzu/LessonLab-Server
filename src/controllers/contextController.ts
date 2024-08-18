@@ -64,7 +64,7 @@ class ContextController {
       try {
         context = await createQuizPrompt(items, namespaceId, specifications);
       } catch (error) {
-        return res.status(500).send({ message: "Failed to connect to Pinecone API"})
+        return res.status(500).send({ message: "Failed to connect to Pinecone API" })
       }
 
       console.log("Server: Context value:", context);

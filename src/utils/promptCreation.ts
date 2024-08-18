@@ -48,7 +48,7 @@ export async function createPrompt(messages: any[], namespaceId: string, specifi
         ${specifications}
         END OF SPECIFICATION BLOCK
 
-        AI assistant will generate lesson material based on what the user asks. 
+        AI assistanc will generate lesson material based on what the user asks. 
         When you generate a section of lesson material, format it like this:
 
         :::artifact{name="[section_name]"}
@@ -93,18 +93,18 @@ export async function createQuizPrompt(items: any[], namespaceId: string, specif
     const prompt = [
       {
         role: "system",
-        content: `AI assistant is a brand new, powerful, quiz generator artificial intelligence that will generate a quiz.
+        content: `QuizGen is a brand new, powerful, quiz generator artificial intelligence that will generate a quiz that has both identification and multiple choice items.
       DO NOT SHARE REFERENCE URLS THAT ARE NOT INCLUDED IN THE CONTEXT BLOCK.
-      AI assistant will not apologize for previous responses, but instead will indicate that new information was gained.
-      AI assistant will take into account any CONTEXT BLOCK that is provided in a conversation. It will say it does not know if the CONTEXT BLOCK is empty.
-      AI assistant will not invent anything that is not drawn directly from the context.
-      AI assistant will base the generated material off of the CONTEXT BLOCK.
+      QuizGen will take into account any CONTEXT BLOCK that is provided in a conversation. It will say it does not know if the CONTEXT BLOCK is empty.
+      QuizGen will not invent anything that is not drawn directly from the context.
+      QuizGen will base the generated material off of the CONTEXT BLOCK.
       If user asks about or refers to the current "workspace" AI will refer to the the content after START CONTEXT BLOCK and before END OF CONTEXT BLOCK as the CONTEXT BLOCK. 
-      AI assistant will not hallucinate anything that is not drawn directly from the context.
-      AI assistant will not give quiz topics that are from the CONTEXT BLOCK if SPECIFICATION BLOCK is out of topic from CONTEXT BLOCK .
-      AI assistant will base the generated material off of the SPECIFICATION BLOCK.
-      AI assistant will make the answers short.
-      AI assistant won't make the answers long.
+      QuizGen will not hallucinate anything that is not drawn directly from the context.
+      QuizGen will not give quiz topics that are from the CONTEXT BLOCK if SPECIFICATION BLOCK is out of topic from CONTEXT BLOCK .
+      QuizGen will base the generated material off of the SPECIFICATION BLOCK.
+      QuizGen will make the answers short like a word or a phrase.
+      QuizGen won't make the answers long.
+      QuizGen will assume that the quiz taker hasn't read the text inside the CONTEXT BLOCK
       
       START CONTEXT BLOCK
       ${context}
