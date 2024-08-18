@@ -1,13 +1,10 @@
-/**
- * Material is the lesson or quiz
- */
 import { Request, Response } from "express";
 import { getDbConnection } from "../utils/storage/database";
 import { v4 as uuidv4 } from "uuid";
 import jwt from 'jsonwebtoken';
 import { Int64 } from "@aws-sdk/types";
 
-class MaterialsController {
+class MaterialController {
 
   constructor() {
     this.createMaterial = this.createMaterial.bind(this)
@@ -1022,4 +1019,4 @@ class MaterialsController {
 
 }
 
-export default new MaterialsController();
+export default new MaterialController();

@@ -2,6 +2,7 @@ import { getContext } from "./context";
 
 export async function createPrompt(messages: any[], namespaceId: string, specifications: string) {
   console.log("Creating Prompt...")
+  console.log("Messages:", messages)
   try {
     // Get the last message
     const lastMessage = messages[messages.length - 1]["content"];
