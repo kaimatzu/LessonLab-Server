@@ -14,7 +14,7 @@ import http from 'http';
 import documentRoutes from "./routes/documentRoutes";
 import contextRoutes from "./routes/contextRoutes";
 import userRoutes from "./routes/userRoutes";
-import materialRoutes from "./routes/materialRoutes";
+import workspaceRoutes from "./routes/workspaceRoutes";
 import moduleRoutes from "./routes/moduleRoutes";
 import classRoutes from "./routes/classRoutes";
 import enrollmentRoutes from "./routes/enrollmentRoutes";
@@ -66,7 +66,7 @@ app.use('/exports', express.static(exportsDir))
 app.use("/api/documents", documentRoutes);
 app.use("/api/context", contextRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/materials', materialRoutes);
+app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/workspaces/modules', moduleRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/enrollments', enrollmentRoutes)

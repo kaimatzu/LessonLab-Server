@@ -4,14 +4,14 @@ import { v4 as uuidv4 } from "uuid";
 import jwt from 'jsonwebtoken';
 import { Int64 } from "@aws-sdk/types";
 
-class MaterialController {
+class WorkspaceController {
 
   constructor() {
-    this.createMaterial = this.createMaterial.bind(this)
-    this.getMaterial = this.getMaterial.bind(this)
-    this.getMaterials = this.getMaterials.bind(this)
-    this.updateMaterial = this.updateMaterial.bind(this)
-    this.deleteMaterial = this.deleteMaterial.bind(this)
+    this.createWorkspace = this.createWorkspace.bind(this)
+    this.getWorkspace = this.getWorkspace.bind(this)
+    this.getWorkspaces = this.getWorkspaces.bind(this)
+    this.updateWorkspace = this.updateWorkspace.bind(this)
+    this.deleteWorkspace = this.deleteWorkspace.bind(this)
 
     this.getSpecifications = this.getSpecifications.bind(this)
     this.insertSpecification = this.insertSpecification.bind(this)
@@ -37,8 +37,8 @@ class MaterialController {
    * @param req The request object
    * @param res The response data
    */
-  async createMaterial(req: Request, res: Response) {
-    const { materialName, materialType } = req.body
+  async createWorkspace(req: Request, res: Response) {
+    const { workspaceName, workspaceType } = req.body
 
     const token = req.cookies.authToken;
 
@@ -48,64 +48,64 @@ class MaterialController {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
 
-    const materialId = uuidv4()
+    const workspaceId = uuidv4()
     
     try {
       const connection = await getDbConnection()
       await connection.execute(
-        'INSERT INTO Materials (`MaterialID`, `MaterialName`, `UserID`) VALUES (?, ?, ?)', 
-        [materialId, materialName, decoded.userId])
+        'INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)', 
+        [workspaceId, workspaceName, decoded.userId])
 
       let entryId: string;
 
-      // Insert into Lessons or Quizzes table based on materialType
-      if (materialType === 'LESSON') {
+      // Insert into Lessons or Quizzes table based on workspaceType
+      if (workspaceType === 'LESSON') {
         entryId = uuidv4();
         await connection.execute(
-          'INSERT INTO Lessons (LessonID, MaterialID) VALUES (?, ?)',
-          [entryId, materialId]
+          'INSERT INTO Lessons (LessonID, WorkspaceID) VALUES (?, ?)',
+          [entryId, workspaceId]
         );
-      } else if (materialType === 'QUIZ') {
+      } else if (workspaceType === 'QUIZ') {
         entryId = uuidv4();
         await connection.execute(
-          'INSERT INTO Quizzes (QuizID, MaterialID) VALUES (?, ?)',
-          [entryId, materialId]
+          'INSERT INTO Quizzes (QuizID, WorkspaceID) VALUES (?, ?)',
+          [entryId, workspaceId]
         );
       } else {
         await connection.end();
-        return res.status(400).json({ message: 'Invalid material type' });
+        return res.status(400).json({ message: 'Invalid workspace type' });
       }
 
-    // Retrieve the created material and corresponding entry
+    // Retrieve the created workspace and corresponding entry
     const query = `
       SELECT 
-        m.MaterialID, 
-        m.MaterialName, 
+        m.WorkspaceID, 
+        m.WorkspaceName, 
         m.UserID,
         m.CreatedAt,
         CASE 
-          WHEN l.MaterialID IS NOT NULL THEN 'LESSON'
-          WHEN q.MaterialID IS NOT NULL THEN 'QUIZ'
+          WHEN l.WorkspaceID IS NOT NULL THEN 'LESSON'
+          WHEN q.WorkspaceID IS NOT NULL THEN 'QUIZ'
           ELSE 'UNKNOWN'
-        END AS MaterialType
-      FROM Materials m
-      LEFT JOIN Lessons l ON m.MaterialID = l.MaterialID
-      LEFT JOIN Quizzes q ON m.MaterialID = q.MaterialID
-      WHERE m.MaterialID = ?
+        END AS WorkspaceType
+      FROM Workspaces m
+      LEFT JOIN Lessons l ON m.WorkspaceID = l.WorkspaceID
+      LEFT JOIN Quizzes q ON m.WorkspaceID = q.WorkspaceID
+      WHERE m.WorkspaceID = ?
     `;
 
-    const rows: any = await connection.execute(query, [materialId]);
+    const rows: any = await connection.execute(query, [workspaceId]);
     const result = rows[0];
     
     // Insert into Specifications table
     const specificationId = uuidv4();
     await connection.execute(
-      'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `MaterialID`) VALUES (?, ?, ?, ?, ?, ?)', 
-      [specificationId, '', '', 'Elementary', 'Simple', materialId]);
+      'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?, ?)', 
+      [specificationId, '', '', 'Elementary', 'Simple', workspaceId]);
 
     await connection.end();
-    const material = result[0];
-    return res.status(201).json({ material, specificationID: specificationId });
+    const workspace = result[0];
+    return res.status(201).json({ workspace, specificationID: specificationId });
 
     } catch (error) {
       console.error(error)
@@ -118,20 +118,20 @@ class MaterialController {
    * @param req The request object
    * @param res The response data
    */
-  async getMaterial(req: Request, res: Response) {
-    const materialId = req.params.materialId
+  async getWorkspace(req: Request, res: Response) {
+    const workspaceId = req.params.workspaceId
     try {
       const connection = await getDbConnection()
-      const result: any = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [materialId])
+      const result: any = await connection.execute('SELECT * FROM Workspaces WHERE WorkspaceID = ?', [workspaceId])
       const rows = result[0]
       await connection.end()
 
       if (rows.length === 0)
-        return res.status(404).json({ error: 'Material not found' })
+        return res.status(404).json({ error: 'Workspace not found' })
 
-      const material = rows[0]
+      const workspace = rows[0]
 
-      return res.status(200).json(material)
+      return res.status(200).json(workspace)
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB connection error' })
@@ -143,7 +143,7 @@ class MaterialController {
    * @param req The request object
    * @param res The response data
    */
-  async getMaterials(req: Request, res: Response) {
+  async getWorkspaces(req: Request, res: Response) {
     const token = req.cookies.authToken;
 
     if (!token) {
@@ -163,18 +163,18 @@ class MaterialController {
     try {
       const query = `
         SELECT 
-          m.MaterialID, 
-          m.MaterialName, 
+          m.WorkspaceID, 
+          m.WorkspaceName, 
           m.UserID,
           m.CreatedAt,
           CASE 
-            WHEN l.MaterialID IS NOT NULL THEN 'LESSON'
-            WHEN q.MaterialID IS NOT NULL THEN 'QUIZ'
+            WHEN l.WorkspaceID IS NOT NULL THEN 'LESSON'
+            WHEN q.WorkspaceID IS NOT NULL THEN 'QUIZ'
             ELSE 'UNKNOWN'
-          END AS MaterialType
-        FROM Materials m
-        LEFT JOIN Lessons l ON m.MaterialID = l.MaterialID
-        LEFT JOIN Quizzes q ON m.MaterialID = q.MaterialID
+          END AS WorkspaceType
+        FROM Workspaces m
+        LEFT JOIN Lessons l ON m.WorkspaceID = l.WorkspaceID
+        LEFT JOIN Quizzes q ON m.WorkspaceID = q.WorkspaceID
         WHERE m.UserID = ?
         ORDER BY m.CreatedAt DESC
       `;
@@ -189,7 +189,7 @@ class MaterialController {
       });
   
       if (rows.length === 0) {
-        return res.status(200).json([]); // Return an empty JSON array if no materials are found
+        return res.status(200).json([]); // Return an empty JSON array if no workspaces are found
       }
 
       return res.status(200).json(rows[0]);
@@ -204,15 +204,15 @@ class MaterialController {
    * @param req The request object
    * @param res The response data
    */
-  async updateMaterial(req: Request, res: Response) {
-    const materialType = req.body.materialType
+  async updateWorkspace(req: Request, res: Response) {
+    const workspaceType = req.body.workspaceType
     const content = req.body.content
     const title = req.body.title
-    const materialId = req.params.materialId
+    const workspaceId = req.params.workspaceId
 
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('UPDATE Materials SET MaterialType = ?, Content = ?, Title = ? WHERE MaterialID', [materialType, content, title, materialId])
+      let result: any = await connection.execute('UPDATE Workspaces SET WorkspaceType = ?, Content = ?, Title = ? WHERE WorkspaceID', [workspaceType, content, title, workspaceId])
       const header = result[0]
 
       if (header.changedRows === 0) {
@@ -220,15 +220,15 @@ class MaterialController {
         return res.status(404).json({ message: 'User not found' })
       }
 
-      result = await connection.execute('SELECT * FROM Materials WHERE MaterialID = ?', [materialId])
+      result = await connection.execute('SELECT * FROM Workspaces WHERE WorkspaceID = ?', [workspaceId])
       const rows = result[0]
       await connection.end()
 
       if (rows.length === 0)
         return res.status(500).json({ error: 'Server error' })
 
-      const material = rows[0]
-      return res.status(200).json(material)
+      const workspace = rows[0]
+      return res.status(200).json(workspace)
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error. ' + error })
@@ -241,18 +241,18 @@ class MaterialController {
    * @param req The request object
    * @param res The response data
    */
-  async deleteMaterial(req: Request, res: Response) {
-    const materialId = req.params.materialId;
+  async deleteWorkspace(req: Request, res: Response) {
+    const workspaceId = req.params.workspaceId;
 
     try {
       const connection = await getDbConnection()
-      const result: any = await connection.execute('DELETE FROM Materials WHERE MaterialID = ?', [materialId])
+      const result: any = await connection.execute('DELETE FROM Workspaces WHERE WorkspaceID = ?', [workspaceId])
       await connection.end()
 
       const header = result[0]
 
       if (header.affectedRows === 0)
-        return res.status(404).json({ error: 'Material not found' })
+        return res.status(404).json({ error: 'Workspace not found' })
 
       res.status(204).send()
     } catch (error) {
@@ -264,11 +264,11 @@ class MaterialController {
   }
 
   //////////////////////////////////////
-  ////////Material Specifications///////
+  ////////Workspace Specifications///////
   //////////////////////////////////////
 
 /**
- * Retrieves all the Specifications associated with a given Material.
+ * Retrieves all the Specifications associated with a given Workspace.
  *
  * @param req - The request object.
  * @param res - The response object.
@@ -289,17 +289,17 @@ class MaterialController {
       return res.status(403).json({ message: 'Invalid token' });
     }
 
-    const { materialId } = req.params;
+    const { workspaceId } = req.params;
 
-    if (!materialId) {
+    if (!workspaceId) {
       return res.status(400).json({ message: 'Workspace ID is required' });
     }
 
     try {
       const connection = await getDbConnection();
       const [rows] = await connection.execute(
-        `SELECT * FROM Specifications WHERE MaterialID = ? ORDER BY CreatedAt`,
-        [materialId]
+        `SELECT * FROM Specifications WHERE WorkspaceID = ? ORDER BY CreatedAt`,
+        [workspaceId]
       );
 
       await connection.end();
@@ -311,7 +311,7 @@ class MaterialController {
   }
 
 /**
- * Inserts a new Specification associated with a given Material.
+ * Inserts a new Specification associated with a given Workspace.
  *
  * @param req - The request object.
  * @param res - The response object.
@@ -331,18 +331,18 @@ class MaterialController {
       return res.status(403).json({ message: 'Invalid token' });
     }
 
-    const { MaterialID } = req.body;
+    const { WorkspaceID } = req.body;
 
-    if (!MaterialID) {
-      return res.status(400).json({ message: 'Material ID is required' });
+    if (!WorkspaceID) {
+      return res.status(400).json({ message: 'Workspace ID is required' });
     }
 
     try {
       const connection = await getDbConnection();
       const SpecificationID = uuidv4();
       await connection.execute(
-        'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `MaterialID`) VALUES (?, ?, ?, ?, ?, ?)', 
-        [SpecificationID, '', '', 'Elementary', 'Simple', MaterialID]);
+        'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?, ?)', 
+        [SpecificationID, '', '', 'Elementary', 'Simple', WorkspaceID]);
 
 
       await connection.end();
@@ -354,8 +354,8 @@ class MaterialController {
   }
 
 /**
- * Deletes a Specification associated with a given Material.
- * Prevents deleting if it is the last specification associated with the Material.
+ * Deletes a Specification associated with a given Workspace.
+ * Prevents deleting if it is the last specification associated with the Workspace.
  *
  * @param req - The request object.
  * @param res - The response object.
@@ -375,26 +375,26 @@ class MaterialController {
       return res.status(403).json({ message: 'Invalid token' });
     }
 
-    const { MaterialID, SpecificationID } = req.params;
+    const { WorkspaceID, SpecificationID } = req.params;
 
-    if (!SpecificationID || !MaterialID) {
-      return res.status(400).json({ message: 'Specification ID and Material ID are required' });
+    if (!SpecificationID || !WorkspaceID) {
+      return res.status(400).json({ message: 'Specification ID and Workspace ID are required' });
     }
 
     try {
       const connection = await getDbConnection();
       
-      // Check if there are multiple specifications associated with the material
+      // Check if there are multiple specifications associated with the workspace
       const [specifications]: any = await connection.execute(
-        `SELECT COUNT(*) as count FROM Specifications WHERE MaterialID = ?`,
-        [MaterialID]
+        `SELECT COUNT(*) as count FROM Specifications WHERE WorkspaceID = ?`,
+        [WorkspaceID]
       );
 
       const count = specifications[0].count;
 
       if (count <= 1) {
         await connection.end();
-        return res.status(400).json({ message: 'Cannot delete the last specification associated with the material' });
+        return res.status(400).json({ message: 'Cannot delete the last specification associated with the workspace' });
       }
 
       await connection.execute(
@@ -1019,4 +1019,4 @@ class MaterialController {
 
 }
 
-export default new MaterialController();
+export default new WorkspaceController();
