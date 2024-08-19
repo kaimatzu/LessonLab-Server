@@ -19,6 +19,14 @@ class ModuleController {
   * @param res The response object.
   */ 
   async createModule(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
+
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
@@ -34,18 +42,18 @@ class ModuleController {
   
       // Create the new module
       await connection.execute(
-        'INSERT INTO module_Modules (module_id, name, description) VALUES (?, ?, ?)',
-        [moduleId, name, description]
+        'INSERT INTO module_Modules (ModuleID, Name, Description, UserID) VALUES (?, ?, ?, ?)',
+        [moduleId, name, description, decoded.userId]
       );
   
       const moduleNodeID = uuidv4();
       // Optionally create a root module node or initial structure
       await connection.execute(
-        'INSERT INTO module_ModuleNodes (modulenode_id, title, content) VALUES (?, ?, ?)',
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content) VALUES (?, ?, ?)',
         [moduleNodeID, '', '']
       );
       await connection.execute(
-        'INSERT INTO module_ModuleClosureTable (module_id, ancestor, descendant, depth, position) VALUES (?, ?, ?, 0, 0)',
+        'INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position) VALUES (?, ?, ?, 0, 0)',
         [moduleId, moduleNodeID, moduleNodeID]
       );
   
@@ -78,11 +86,11 @@ class ModuleController {
   
       // Check if the module and parent node exist
       const [moduleExists]: any = await connection.execute(
-        'SELECT COUNT(*) AS count FROM module_Modules WHERE module_id = ?',
+        'SELECT COUNT(*) AS count FROM module_Modules WHERE ModuleID = ?',
         [moduleId]
       );
       const [parentNodeExists]: any = await connection.execute(
-        'SELECT COUNT(*) AS count FROM module_ModuleNodes WHERE modulenode_id = ?',
+        'SELECT COUNT(*) AS count FROM module_ModuleNodes WHERE ModuleNodeID = ?',
         [parentNodeId]
       );
   
@@ -94,15 +102,15 @@ class ModuleController {
   
       // Insert new module node as a child
       await connection.execute(
-        'INSERT INTO module_ModuleNodes (modulenode_id, title, content) VALUES (?, ?, ?)',
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content) VALUES (?, ?, ?)',
         [moduleNodeID, title, content]
       );
   
       // Calculate the new position as the count of current siblings
       const [positionData]: any = await connection.execute(
         `SELECT COUNT(*) AS siblingCount FROM module_ModuleClosureTable 
-        WHERE ancestor = ? AND depth = (SELECT depth + 1 FROM module_ModuleClosureTable WHERE descendant = ? AND module_id = ?) 
-        AND module_id = ?`,
+        WHERE Ancestor = ? AND Depth = (SELECT Depth + 1 FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?) 
+        AND ModuleID = ?`,
         [parentNodeId, parentNodeId, moduleId, moduleId]
       );
 
@@ -111,15 +119,15 @@ class ModuleController {
   
       // First, fetch the depth separately
       const [depthResult]: any = await connection.execute(
-        `SELECT depth FROM module_ModuleClosureTable WHERE descendant = ? AND module_id = ?`,
+        `SELECT Depth FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?`,
         [parentNodeId, moduleId]
       );
 
-      const newDepth = depthResult[0].depth + 1;
+      const newDepth = depthResult[0].Depth + 1;
 
       // Now perform the insert
       await connection.execute(
-        `INSERT INTO module_ModuleClosureTable (module_id, ancestor, descendant, depth, position)
+        `INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position)
         VALUES (?, ?, ?, ?, ?)`,
         [moduleId, parentNodeId, moduleNodeID, newDepth, newPosition]
       );
@@ -140,23 +148,23 @@ class ModuleController {
   buildFullTree(nodes: any[]) {
     const nodeMap = new Map<string, any>();
     nodes.forEach(node => {
-      node.children = [];
-      nodeMap.set(node.descendant, node);
+      node.Children = [];
+      nodeMap.set(node.Descendant, node);
     });
 
     nodes.forEach(node => {
-      if (node.ancestor !== node.descendant) {
-        const parent = nodeMap.get(node.ancestor);
+      if (node.Ancestor !== node.Descendant) {
+        const parent = nodeMap.get(node.Ancestor);
         if (parent) {
-          parent.children.push(node);
+          parent.Children.push(node);
         }
       }
     });
 
     // Order children by position
     nodeMap.forEach(node => {
-      if (node.children.length > 1) {
-        node.children.sort((a: any, b: any) => a.position - b.position);
+      if (node.Children.length > 1) {
+        node.Children.sort((a: any, b: any) => a.Position - b.Position);
       }
     });
 
@@ -182,7 +190,7 @@ class ModuleController {
     try {
       const connection = await getDbConnection();
       const [rows]: any[] = await connection.execute(
-        `SELECT * FROM module_ModuleClosureTable WHERE module_id = ?`,
+        `SELECT * FROM module_ModuleClosureTable WHERE ModuleID = ?`,
         [moduleId]
       );
       
@@ -214,8 +222,8 @@ class ModuleController {
     // Fetch all descendants of the parent node
     const children = await connection.execute(
       `SELECT * FROM module_ModuleClosureTable
-        WHERE module_id = ? AND ancestor = ? AND ancestor != descendant
-        ORDER BY position`,
+        WHERE ModuleID = ? AND Ancestor = ? AND Ancestor != Descendant
+        ORDER BY Position`,
       [moduleId, parentId]
     );
   
@@ -225,8 +233,8 @@ class ModuleController {
     if (children[0].length > 0) {
       // Iterate through each child to construct the tree recursively
       for (const child of children[0]) {
-        console.log("Traversing: ", child.descendant);
-        child.children = await this.fetchChildren(connection, moduleId, child.descendant);
+        console.log("Traversing: ", child.Descendant);
+        child.Children = await this.fetchChildren(connection, moduleId, child.Descendant);
       }
     } else {
       console.log("Terminate")
@@ -257,14 +265,14 @@ class ModuleController {
       // Fetch the root node information if needed
       const rootNode: any = await connection.execute(
         `SELECT * FROM module_ModuleClosureTable
-         WHERE module_id = ? AND descendant = ?`,
+         WHERE ModuleID = ? AND Descendant = ?`,
         [moduleId, moduleNodeId]
       );
   
       // Recursively fetch all children
       const tree = rootNode[0][0];
       console.log("Tree: ", tree);
-      tree.children = await this.fetchChildren(connection, moduleId, moduleNodeId);
+      tree.Children = await this.fetchChildren(connection, moduleId, moduleNodeId);
   
       await connection.end();
   
