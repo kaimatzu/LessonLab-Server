@@ -17,7 +17,7 @@ import { SpacesStorage } from "../utils/storage/spacesStorage";
 import { upload } from "../utils/multer";
 import jwt from 'jsonwebtoken';
 
-class DocumentsController {
+class DocumentController {
   private documentModel: DocumentModel;
 
   /**
@@ -356,4 +356,4 @@ class DocumentsController {
   }
 }
 
-export default new DocumentsController();
+export default new DocumentController();
