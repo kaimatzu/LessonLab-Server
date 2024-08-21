@@ -13,6 +13,7 @@ import {
   CompletionUsage,
 } from 'openai/resources';
 import { OpenAIError } from 'openai/error';
+import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 export type Message = ChatCompletionMessageParam;
 
@@ -24,6 +25,10 @@ export interface Options {
 }
 
 export interface EventsMap {
+  'join-room'(roomId: string): void; 
+  'leave-room'(roomId: string): void;
+  'leave-all-rooms'(): void;
+  'send-data'(roomId: string): void;
   'new-message'(message: string | Message): void;
   'set-options'(options: Omit<ClientOptions, 'currentChatStream'>): void;
   abort: () => void;
@@ -57,4 +62,5 @@ export type ClientOptions = {
 };
 
 export interface Client
-  extends Socket<ListenEvents, EmitEvents, {}, ClientOptions> {}
+  extends Socket<ListenEvents, EmitEvents, DefaultEventsMap, ClientOptions> {}
+  // extends Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any> {}

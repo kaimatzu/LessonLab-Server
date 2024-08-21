@@ -11,6 +11,8 @@ import SocketServer from "./socketServer";
 dotenv.config();
 
 class Server {
+  private static instance: Server;
+
   public server: http.Server;
   public expressApp: ExpressApp;
   public socketServer: SocketServer;
@@ -27,6 +29,13 @@ class Server {
     this.socketServer = new SocketServer(this.server);
     
     this.initialize();
+  }
+
+  static getInstance(): Server {
+    if (!Server.instance) {
+      Server.instance = new Server()
+    }
+    return Server.instance;
   }
 
   initialize() {
@@ -73,6 +82,7 @@ class Server {
   }
 }
 
-// Export single instance of server. This is the main entry point of the server. 
-// DO NOT RE-INITIALIZE!!!
-export const server = new Server();
+// Initialize server singleton instance once.
+Server.getInstance();
+
+export default Server;

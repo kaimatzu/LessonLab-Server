@@ -1,27 +1,12 @@
 import OpenAI from 'openai';
-import { Server } from 'socket.io';
 import {
   Client,
   ChatCompletionEvents,
   Options,
   Message,
-  ClientOptions,
-  EmitEvents,
-  ListenEvents,
-  EventsMap,
-} from './types/chat-assistant';
+} from './types/globals';
 
-class OpenAISocket {
-  /**
-   * Socket clients
-   */
-  public clients: Map<string, Client> = new Map<string, Client>();
-
-  /**
-   * History of messages for each socket client
-   */
-  public messages: Map<string, Message[]> = new Map<string, Message[]>();
-
+class AISocketHandler {
   /**
    *  OpenAI official client
    */
@@ -29,12 +14,12 @@ class OpenAISocket {
 
 
   /**
-   * Constructor for OpenAISocket
+   * Configures the socket listeners for AI related operations.
    * @param {Server} io - Socket.io server.
    * @param {Options} options - Options for the OpenAISocket.
    */
   constructor(
-    public io: Server,
+    public client: Client,
     public options: Options = {
       verbose: false,
       chat: { model: 'gpt-3.5-turbo' },
@@ -42,29 +27,26 @@ class OpenAISocket {
         { role: 'system', content: 'You are a helpful assistant.' },
       ],
     },
+    public clients: Map<string, Client>,
+    public assistantChatMessages: Map<string, Message[]>,
   ) {
     this.openai = new OpenAI(this.options.client);
-    io.on('connection', (client: Client) => {
-      const { id } = client;
-      client.data.chat = this.options.chat;
-      client.data.initMessages = this.options.initMessages;
-      this.clients.set(id, client);
-      this.messages.set(id, []);
-      this.logger(`Client connected: ${id}`);
-      client.on('disconnect', () => this.onDisconnect(client));
-      client.on('new-message', (message) => this.onNewMessage(client, message));
-      client.on('set-options', (options) => {
-        if (options.chat) client.data.chat = options.chat;
-        if (options.initMessages)
-          client.data.initMessages = options.initMessages;
-      });
+    client.data.chat = this.options.chat;
+    client.data.initMessages = this.options.initMessages;
 
-      client.on('abort', () => {
-        if (client.data.currentChatStream) {
-          client.data.currentChatStream.controller.abort();
-          client.data.currentChatStream = undefined;
-        }
-      });
+    client.on('new-message', (message) => this.onNewMessage(client, message));
+
+    client.on('set-options', (options) => {
+      if (options.chat) client.data.chat = options.chat;
+      if (options.initMessages)
+        client.data.initMessages = options.initMessages;
+    });
+
+    client.on('abort', () => {
+      if (client.data.currentChatStream) {
+        client.data.currentChatStream.controller.abort();
+        client.data.currentChatStream = undefined;
+      }
     });
   }
 
@@ -87,24 +69,6 @@ class OpenAISocket {
     this.processNewMessage(client);
   }
 
-  onDisconnect(socket: Client): void {
-    const { id } = socket;
-    this.logger(`Client disconnected: ${id}`);
-    this.clients.delete(id);
-    this.messages.delete(id);
-  }
-
-  /**
-   *  Logs a message if the verbose option is set to true.
-   * @param {string} message
-   * @returns {void}
-   */
-  logger(message: string): void {
-    if (this.options.verbose) {
-      console.debug(`[OpenAISocket] ${message}`);
-    }
-  }
-
   /**
    * Pushes a message to the chat history for a given socket ID
    * @param {string} socketId - The ID of the socket.
@@ -112,8 +76,8 @@ class OpenAISocket {
    * @returns {void}
    */
   private pushToChatHistory(socketId: string, message: Message): void {
-    if (this.messages.has(socketId)) {
-      this.messages.get(socketId)?.push(message);
+    if (this.assistantChatMessages.has(socketId)) {
+      this.assistantChatMessages.get(socketId)?.push(message);
     }
   }
 
@@ -123,7 +87,7 @@ class OpenAISocket {
    * @returns {Message[]}
    */
   private getChatHistory(socketId: string): Message[] {
-    return this.messages.get(socketId) ?? [];
+    return this.assistantChatMessages.get(socketId) ?? [];
   }
 
   /**
@@ -184,16 +148,15 @@ class OpenAISocket {
       );
     });
   }
+
+  /**
+   *  Logs a message if the verbose option is set to true.
+   * @param {string} message
+   * @returns {void}
+   */
+    logger(message: string): void {
+      console.debug(`[AISocketHandler] ${message}`);
+    }
 }
 
-export {
-  OpenAISocket,
-  Client,
-  ChatCompletionEvents,
-  Options,
-  Message,
-  ClientOptions,
-  EmitEvents,
-  ListenEvents,
-  EventsMap,
-};
+export default AISocketHandler;

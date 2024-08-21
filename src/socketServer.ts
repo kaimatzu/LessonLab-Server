@@ -1,81 +1,117 @@
 import { Server as SocketIO } from 'socket.io';
-import http, { Server } from 'http';
+import { Server } from 'http';
 import { corsOptions } from "./config";
 
+import {
+  Client,
+  Message,
+} from './types/globals';
+import AISocketHandler from './ai';
+
 class SocketServer {
+  /**
+   * Socket clients
+   */
+  public clients: Map<string, Client> = new Map<string, Client>();
+
+  /**
+   * History of messages for each socket client
+   */
+  public assistantChatMessages: Map<string, Message[]> = new Map<string, Message[]>();
+
+  public io: SocketIO;
 
   constructor(
     public server: Server,
-    public io = new SocketIO(server, {
-      cors: corsOptions
-    })
-     
+    // public options: Options = {
+    //   verbose: false,
+    //   chat: { model: 'gpt-3.5-turbo' },
+    //   initMessages: [
+    //     { role: 'system', content: 'You are a helpful assistant.' },
+    //   ],
+    // },
   ) {
-    io.of("/").adapter.on("create-room", (room) => {
+    this.io = new SocketIO(server, {
+      cors: corsOptions
+    });
+
+    this.io.of("/").adapter.on("create-room", (room: any) => {
       console.log(`room ${room} was created`);
     });
 
-    io.of("/").adapter.on("join-room", (room, id) => {
-      console.log(`socket ${id} has joined room ${room}`);
+    this.io.of("/").adapter.on("join-room", (room: any, id: any) => {
+      console.log(`client ${id} has joined room ${room}`);
     });
 
-    io.of("/").adapter.on("leave-room", (room, id) => {
-      console.log(`socket ${id} has left room ${room}`);
+    this.io.of("/").adapter.on("leave-room", (room: any, id: any) => {
+      console.log(`client ${id} has left room ${room}`);
     });
 
-    io.of("/").adapter.on("delete-room", (room) => {
+    this.io.of("/").adapter.on("delete-room", (room: any) => {
       console.log(`room ${room} was deleted`);
     });
 
-    io.on('connection', (socket) => {
-      console.log('A user connected');
-
-      socket.on('join-room', (roomId) => {
-        socket.join(roomId);
-        console.log(`Socket ${socket.id} joined room ${roomId}`);
-      });
-
-      socket.on('leave-room', (roomId) => {
-        socket.leave(roomId);
-        console.log(`Socket ${socket.id} left room ${roomId}`);
-      });
-
-      socket.on('leave-all-rooms', () => {
-        console.log(`Socket ${socket.id} leaving all rooms`);
-
-        console.log("Rooms:", socket.rooms);
-        socket.rooms.forEach((room) => {
-          if (room !== socket.id) {
-            console.log(`Leaving ${room}.`);
-            socket.leave(room);
-          }
-        });
-      });
-
-      socket.on('send_data', (roomId) => {
-        console.log("Submitting payment status data to:", roomId);
-        io.in(roomId).emit("message", roomId);
-        // socket.leave(roomId);
-      })
-
-      socket.on('disconnecting', () => {
-        // const rooms = Object.keys(socket.rooms);
-        // rooms.forEach((room) => {
-        //   socket.leave(room);
-        //   console.log(`Room ${room} is being deleted after user disconnect.`);
-        // });
-      });
-
-      socket.on('disconnect', () => {
-        console.log("Rooms disconnect:", socket.rooms);
-        socket.rooms.forEach((room) => {
-          console.log(`Room ${room} is being deleted after user disconnect.`);
-          socket.leave(room);
-        });
-        console.log('User disconnected');
-      });
+    this.io.on('connection', (client: Client) => {
+      const { id } = client;
+      this.logger(`Client connected: ${id}`);
+      
+      this.clients.set(id, client);
+      this.assistantChatMessages.set(id, []);
+      
+      client.on('join-room', (roomId) => client.join(roomId));
+      
+      client.on('leave-room', (roomId) => client.leave(roomId));
+      
+      client.on('leave-all-rooms', () => this.leaveAllRooms(client));
+      
+      client.on('send-data', (roomId) => {this.io.in(roomId).emit("message", roomId)})
+      
+      client.on('disconnecting', () => {});
+      
+      client.on('disconnect', () => this.onDisconnect(client));
+      
+      new AISocketHandler(client, {
+        verbose: false,
+        chat: { model: 'gpt-3.5-turbo' },
+        initMessages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+        ],
+      },
+      this.clients,
+      this.assistantChatMessages,
+      );
     });
   }
+
+  onDisconnect(socket: Client): void {
+    const { id } = socket;
+    this.clients.delete(id);
+    this.assistantChatMessages.delete(id);
+    console.log("Rooms disconnect:", socket.rooms);
+    socket.rooms.forEach((room) => {
+      console.log(`Room ${room} is being deleted after user disconnect.`);
+      socket.leave(room);
+    });
+    this.logger(`Client disconnected: ${id}`);
+  }
+
+  leaveAllRooms(socket: Client): void {
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        console.log(`Leaving ${room}.`);
+        socket.leave(room);
+      }
+    });
+  }
+
+  /**
+   *  Logs a message if the verbose option is set to true.
+   * @param {string} message
+   * @returns {void}
+   */
+    logger(message: string): void {
+      console.debug(`[Socket] ${message}`);
+    }
 }
 
 export default SocketServer;
