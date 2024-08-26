@@ -14,22 +14,10 @@ class SocketServer {
    */
   public clients: Map<string, Client> = new Map<string, Client>();
 
-  /**
-   * History of messages for each socket client
-   */
-  public assistantChatMessages: Map<string, Message[]> = new Map<string, Message[]>();
-
   public io: SocketIO;
 
   constructor(
     public server: Server,
-    // public options: Options = {
-    //   verbose: false,
-    //   chat: { model: 'gpt-3.5-turbo' },
-    //   initMessages: [
-    //     { role: 'system', content: 'You are a helpful assistant.' },
-    //   ],
-    // },
   ) {
     this.io = new SocketIO(server, {
       cors: corsOptions
@@ -56,7 +44,6 @@ class SocketServer {
       this.logger(`Client connected: ${id}`);
       
       this.clients.set(id, client);
-      this.assistantChatMessages.set(id, []);
       
       client.on('join-room', (roomId) => client.join(roomId));
       
@@ -78,7 +65,6 @@ class SocketServer {
         ],
       },
       this.clients,
-      this.assistantChatMessages,
       );
     });
   }
@@ -86,7 +72,6 @@ class SocketServer {
   onDisconnect(socket: Client): void {
     const { id } = socket;
     this.clients.delete(id);
-    this.assistantChatMessages.delete(id);
     console.log("Rooms disconnect:", socket.rooms);
     socket.rooms.forEach((room) => {
       console.log(`Room ${room} is being deleted after user disconnect.`);

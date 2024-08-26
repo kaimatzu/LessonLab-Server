@@ -5,6 +5,8 @@ import {
   Options,
   Message,
 } from './types/globals';
+import { uuid } from 'uuidv4';
+import assistantController from '../src/controllers/assistantController';
 
 class AISocketHandler {
   /**
@@ -28,13 +30,12 @@ class AISocketHandler {
       ],
     },
     public clients: Map<string, Client>,
-    public assistantChatMessages: Map<string, Message[]>,
   ) {
     this.openai = new OpenAI(this.options.client);
     client.data.chat = this.options.chat;
     client.data.initMessages = this.options.initMessages;
 
-    client.on('new-message', (message) => this.onNewMessage(client, message));
+    client.on('new-message', async (message, workspaceId, chatHistory) => await this.onNewMessage(client, message, workspaceId, chatHistory));
 
     client.on('set-options', (options) => {
       if (options.chat) client.data.chat = options.chat;
@@ -57,37 +58,36 @@ class AISocketHandler {
    * @param {string | Message} message - The message received from the client.
    * @return {void} This function does not return anything.
    */
-  onNewMessage(client: Client, message: string | Message): void {
+  async onNewMessage(client: Client, message: string | Message, workspaceId: string, chatHistory: Message[]): Promise<void> { 
     if (typeof message === 'object') {
-      this.pushToChatHistory(client.id, message);
+      chatHistory.push(message);
     } else {
-      this.pushToChatHistory(client.id, {
+      chatHistory.push({
         role: 'user',
         content: message,
-      });
+      })
+      this.logger(`Workspace ID: ${workspaceId}`);
+      const userMessageId = uuid();
+      client.emit('retrieve-user-message', userMessageId, message, workspaceId);
+      
+      try {
+        await assistantController.insertChatHistory(
+          {
+            role: 'user',
+            content: message,
+          }, 
+          userMessageId, 
+          workspaceId
+        );
+      }
+      catch (error) {
+        console.error('Error inserting chat history:', error);
+      }
     }
-    this.processNewMessage(client);
-  }
 
-  /**
-   * Pushes a message to the chat history for a given socket ID
-   * @param {string} socketId - The ID of the socket.
-   * @param {string} message - The message to push.
-   * @returns {void}
-   */
-  private pushToChatHistory(socketId: string, message: Message): void {
-    if (this.assistantChatMessages.has(socketId)) {
-      this.assistantChatMessages.get(socketId)?.push(message);
-    }
-  }
+    this.logger(`Chat history: \n${JSON.stringify(chatHistory, null, 2)}`);
 
-  /**
-   * Gets the chat history for a given socket ID
-   * @param {string} socketId - The ID of the socket.
-   * @returns {Message[]}
-   */
-  private getChatHistory(socketId: string): Message[] {
-    return this.assistantChatMessages.get(socketId) ?? [];
+    this.processNewMessage(client, workspaceId, chatHistory);
   }
 
   /**
@@ -96,42 +96,56 @@ class AISocketHandler {
    * @param {Client} client - The client object.
    * @return {void} This function does not return anything.
    */
-  private processNewMessage(client: Client): void {
+  private processNewMessage(client: Client, workspaceId: string, chatHistory: Message[]): void {
     const { id, data } = client;
 
     client.data.currentChatStream = this.openai.beta.chat.completions.stream({
       ...client.data.chat,
-      messages: [...data.initMessages, ...this.getChatHistory(id)],
+      messages: [...data.initMessages, ...chatHistory],
     });
+    
+    const assistantMessageId = uuid();
+    client.emit('retrieve-assistant-message', assistantMessageId, workspaceId);
 
     const streamHandlers = {
       content: (contentDelta, contentSnapshot) =>
-        client.emit('content', contentDelta, contentSnapshot),
+        client.emit('content', contentDelta, contentSnapshot, assistantMessageId, workspaceId),
       finalContent: (contentSnapshot) =>
-        client.emit('finalContent', contentSnapshot),
-      chunk: (chunk, snapshot) => client.emit('chunk', chunk, snapshot),
-      chatCompletion: (completion) => client.emit('chatCompletion', completion),
+        client.emit('finalContent', contentSnapshot, workspaceId),
+      chunk: (chunk, snapshot) => client.emit('chunk', chunk, snapshot, workspaceId),
+      chatCompletion: (completion) => client.emit('chatCompletion', completion, workspaceId),
       finalChatCompletion: (completion) =>
-        client.emit('finalChatCompletion', completion),
-      message: (message) => client.emit('message', message),
-      finalMessage: (message) => {
-        this.pushToChatHistory(id, message);
-        client.emit('finalMessage', message);
+        client.emit('finalChatCompletion', completion, workspaceId),
+      message: (message) => client.emit('message', message, workspaceId),
+      finalMessage: async (message) => {
+        // this.pushToChatHistory(id, message);
+        client.emit('finalMessage', message, workspaceId);
+        try {
+          await assistantController.insertChatHistory(
+            message,
+            uuid(), 
+            workspaceId
+          );
+        }
+        catch (error) {
+          console.error('Error inserting chat history:', error);
+        }
       },
-      functionCall: (functionCall) => client.emit('functionCall', functionCall),
+      functionCall: (functionCall) => client.emit('functionCall', functionCall, workspaceId),
       finalFunctionCall: (finalFunctionCall) =>
-        client.emit('finalFunctionCall', finalFunctionCall),
+        client.emit('finalFunctionCall', finalFunctionCall, workspaceId),
       functionCallResult: (finalFunctionCallResult) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult),
-      finalFunctionCallResult: (finalFunctionCallResult) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult),
-      totalUsage: (usage) => client.emit('totalUsage', usage),
+        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+      finalFunctionCallResult: (finalFunctionCallResult, workspaceId) =>
+        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+      totalUsage: (usage) => client.emit('totalUsage', usage, workspaceId),
       error: (error) => {
-        client.emit('error', error);
+        client.emit('error', error, workspaceId);
         client.data.currentChatStream = undefined;
       },
       end: () => {
-        client.emit('end');
+        client.emit('end', workspaceId);
+        client.emit('debug-log', JSON.stringify({ workspaceId: workspaceId, chatHistory: chatHistory}))
         client.data.currentChatStream = undefined;
       },
     } as ChatCompletionEvents;
@@ -140,9 +154,9 @@ class AISocketHandler {
       client.data.currentChatStream?.on(
         event as keyof typeof streamHandlers,
         (...args: any) => {
-          this.logger(
-            `Event: ${event}, Args: ${JSON.stringify(args, null, 2)}`,
-          );
+          // this.logger(
+          //   `Event: ${event}, Args: ${JSON.stringify(args, null, 2)}`,
+          // );
           handler(...args);
         },
       );

@@ -9,6 +9,7 @@ router.get('', workspaceController.getWorkspaces)
 router.patch('/:workspaceId', workspaceController.updateWorkspace)
 router.delete('/:workspaceId', workspaceController.deleteWorkspace)
 
+// TODO: Refactor this into new file
 router.get('/specifications/:workspaceId', workspaceController.getSpecifications)
 router.post('/specifications', workspaceController.insertSpecification);
 router.delete('/specifications/:WorkspaceID/:SpecificationID', workspaceController.deleteSpecification);
@@ -21,6 +22,7 @@ router.post('/specifications/additionalspecifications', workspaceController.inse
 router.patch('/specifications/additionalspecifications', workspaceController.updateAdditionalSpecification)
 router.delete('/specifications/additionalspecifications/:AdditionalSpecID', workspaceController.removeAdditionalSpecification)
 
+// TODO: Delete this garbage
 router.post('/lessons/pages', workspaceController.createLessonPage)
 router.get('/lessons/pages/:lessonId', workspaceController.getLessonPages)
 router.patch('/lessons/pages/update/title', workspaceController.updatePageTitle)

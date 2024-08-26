@@ -24,31 +24,35 @@ export interface Options {
   initMessages: Message[];
 }
 
+
 export interface EventsMap {
   'join-room'(roomId: string): void; 
   'leave-room'(roomId: string): void;
   'leave-all-rooms'(): void;
   'send-data'(roomId: string): void;
-  'new-message'(message: string | Message): void;
+  'new-message'(message: string | Message, workspaceId: string, chatHistory: Message[]): void;
+  'retrieve-user-message'(id: string, content: string, workspaceId: string): void;
+  'retrieve-assistant-message'(id: string, workspaceId): void;
   'set-options'(options: Omit<ClientOptions, 'currentChatStream'>): void;
+  'debug-log'(message: string): void;
   abort: () => void;
 }
 
 export interface ChatCompletionEvents {
-  content: (contentDelta: string, contentSnapshot: string) => void;
-  chunk: (chunk: ChatCompletionChunk, snapshot: ChatCompletionSnapshot) => void;
-  functionCall: (functionCall: ChatCompletionMessage.FunctionCall) => void;
-  message: (message: Message) => void;
-  chatCompletion: (completion: ChatCompletion) => void;
-  finalContent: (contentSnapshot: string) => void;
-  finalMessage: (message: Message) => void;
-  finalChatCompletion: (completion: ChatCompletion) => void;
-  finalFunctionCall: (functionCall: ChatCompletionMessage.FunctionCall) => void;
-  functionCallResult: (content: string) => void;
-  finalFunctionCallResult: (content: string) => void;
-  error: (error: OpenAIError) => void;
-  end: () => void;
-  totalUsage: (usage: CompletionUsage) => void;
+  content: (contentDelta: string, contentSnapshot: string, assistantMessageId: string, workspaceId: string) => void;
+  chunk: (chunk: ChatCompletionChunk, snapshot: ChatCompletionSnapshot, workspaceId: string) => void;
+  functionCall: (functionCall: ChatCompletionMessage.FunctionCall, workspaceId: string) => void;
+  message: (message: Message, workspaceId: string) => void;
+  chatCompletion: (completion: ChatCompletion, workspaceId: string) => void;
+  finalContent: (contentSnapshot: string, workspaceId: string) => void;
+  finalMessage: (message: Message, workspaceId: string) => void;
+  finalChatCompletion: (completion: ChatCompletion, workspaceId: string) => void;
+  finalFunctionCall: (functionCall: ChatCompletionMessage.FunctionCall, workspaceId: string) => void;
+  functionCallResult: (content: string, workspaceId: string) => void;
+  finalFunctionCallResult: (content: string, workspaceId: string) => void;
+  error: (error: OpenAIError, workspaceId: string) => void;
+  end: (workspaceId: string) => void;
+  totalUsage: (usage: CompletionUsage, workspaceId: string) => void;
 }
 
 export interface ListenEvents extends EventsMap {}
