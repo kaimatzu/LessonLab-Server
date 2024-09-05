@@ -39,7 +39,7 @@ class AISocketHandler {
         { role: 'system', content: 'You are a helpful assistant.' },
       ],
     },
-    public clients: Map<string, Client>,
+    // public clients: Map<string, Client>,
     public workspaceMessagesBufferProxy: WorkspaceMessagesProxy,
     public workspaceModulesBufferProxy: WorkspaceModulesProxy,
   ) {
@@ -65,7 +65,8 @@ class AISocketHandler {
         client.data.initMessages = options.initMessages;
     });
 
-    client.on('abort', () => {
+    // TODO: Modify this so that all AI assistant operations over a workspace ID is terminated
+    client.on('abort', () => { 
       if (client.data.currentChatStream) {
         client.data.currentChatStream.controller.abort();
         client.data.currentChatStream = undefined;
@@ -93,7 +94,7 @@ class AISocketHandler {
 
         const moduleId = uuid();
         const moduleDirective = `:::module_outline{moduleId="${moduleId}" subject="${subject}" context_instructions="${context_instructions}"}\n:::`;
-        client.emit('content', moduleDirective, null, assistantMessageId, workspaceId);
+        client.emit('content', moduleDirective, moduleDirective as any, assistantMessageId, workspaceId);
 
         await assistantController.insertChatHistory(
           {
@@ -243,21 +244,108 @@ class AISocketHandler {
       client.once('directive-ready', handleDirectiveReady);
     });
 
-    client.on('confirm-module-outline-response', async(action, workspaceId) => {
+    client.on('confirm-module-outline-response', async(action, workspaceId, moduleId, module, subject, context_instructions) => {
       if (action === 'submit') {
         console.log('User accepted the module outline');
         const userMessageId = uuid();
         const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Accepted by User"}`;
         client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId);
         
-        // Proceed with the accepted module outline
+        await assistantController.insertChatHistory(
+          {
+            role: 'user',
+            content: actionNotificationDirective,
+          },
+          userMessageId,
+          MessageType.Action,
+          workspaceId
+        );
+
+        const result = await moduleController.createModuleCallback(module.name, module.description, workspaceId, moduleId);
+        const rootNode = result.moduleId;
+        
+        // await moduleController.insertChildToModuleNodeCallback(rootNode!, rootNode!, null, "Some content for testing", "Test Module Node");
+
+        await Promise.all(
+          module.nodes.map(async (node: ModuleNodeOutline) => {
+            await this.insertModuleNode(rootNode!, node, rootNode!);
+          })
+        );
+
+        client.emit('create-module', moduleId!, workspaceId, module.name, module.description, async (ack) => {
+          if (ack === 'module-created') {
+            // Proceed with the accepted module outline 
+            console.log("Module outline data", module);
+    
+            const serializedKey = serializeTuple([moduleId, workspaceId]);
+            
+            const moduleBuffer: Module = {
+              id: moduleId,
+              name: module.name,
+              description: module.description,
+              nodes: module.nodes
+            }
+    
+            workspaceModulesBufferProxy.set(serializedKey, moduleBuffer);
+    
+            let i = 0;
+            for (const node of module.nodes) {
+              const traverseModuleNodes = async (
+                moduleId: string,
+                workspaceId: string,
+                node: ModuleNodeOutline
+              ) => {
+                // Call generateModuleNodeContent for the current node sequentially
+                if (node.id) {
+                  await this.generateModuleNodeContent(
+                    moduleId,
+                    node.id,
+                    workspaceId,
+                    node.title,
+                    node.description,
+                    subject,
+                    context_instructions
+                  );
+                }
+            
+                // workspaceModulesBufferProxy.emit(serializedKey, 'update-module-node', moduleId, node.id, workspaceId, node.description, node.description);
+                
+                console.log("Iteration", i++);
+    
+                // If this node has children, recursively call traverseModuleNodes for each child
+                if (node.children && node.children.length > 0) {
+                  for (const childNode of node.children) {
+                    await traverseModuleNodes(moduleId, workspaceId, childNode);
+                  }
+                }
+              };
+            
+              // Traverse each module node sequentially
+              await traverseModuleNodes(moduleId, workspaceId, node);
+            }
+            
+            workspaceModulesBufferProxy.emit(serializedKey, 'end');
+          }
+        })
+
       } else if (action === 'cancel') {
         console.log('User canceled the module outline generation');
         const userMessageId = uuid();
         const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Rejected by User"}`;
         client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId);
         
+        await assistantController.insertChatHistory(
+          {
+            role: 'user',
+            content: actionNotificationDirective,
+          },
+          userMessageId,
+          MessageType.Action,
+          workspaceId
+        );
+
         // End assistant message sequence
+        client.emit('end', workspaceId);
       }
     })
   }    
@@ -321,7 +409,6 @@ class AISocketHandler {
             intentDecompositionCompletion.parsed.subject,
             intentDecompositionCompletion.parsed.context_instructions,
             workspaceId,
-            // assistantMessageId,
             chatHistory,
             userTokens
           )
@@ -342,15 +429,7 @@ class AISocketHandler {
           // this.processNewMessage(client, miscSystemPrompt, workspaceId, chatHistory, userTokens);
           break;
       }
-
-
-
     }
-
-    // this.logger(`Chat history: \n${JSON.stringify(chatHistory, null, 2)}`);
-
-    // Pass userTokens to processNewMessage
-    // this.processNewMessage(client, workspaceId, chatHistory, userTokens);
   }
 
   private async processNewMessage(client: Client, systemPrompt: ChatCompletionMessageParam[], workspaceId: string, chatHistory: Message[], userTokens: number): Promise<void> {
@@ -403,7 +482,7 @@ class AISocketHandler {
           await assistantController.insertChatHistory(
             message,
             uuid(),
-            "standard", // TODO: Create enum for this
+            MessageType.Standard,
             workspaceId
           );
         } catch (error) {
@@ -432,20 +511,19 @@ class AISocketHandler {
       client.data.currentChatStream?.on(
         event as keyof typeof streamHandlers,
         async (...args: any) => {
-          // this.logger(
-          //   `Event: ${event}, Args: ${JSON.stringify(args, null, 2)}`,
-          // );
           await handler(...args);
         },
       );
     });
   }
 
-  private async intermediateResponse(client: Client, subject: string, context_instructions: string, piplineStatus: string, workspaceId: string, chatHistory: Message[], userTokens: number): Promise<string> {
-    const { id, data } = client;
-
+  private async intermediateResponse(subject: string, context_instructions: string, piplineStatus: string, workspaceId: string, chatHistory: Message[], userTokens: number): Promise<string> {
     const assistantMessageId = uuid();
-    client.emit('initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId);
+
+    const tupleKey: WorkspaceMessageKey = [assistantMessageId, workspaceId];
+    const serializedKey = serializeTuple(tupleKey);
+
+    this.workspaceMessagesBufferProxy.emit(serializedKey, 'initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId);
 
     let finalIntermediateResponse: string = '';
 
@@ -458,26 +536,18 @@ context_instructions: ${context_instructions}`;
 
     const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
 
-    client.data.currentChatStream = this.openai.beta.chat.completions.stream({
+    const stream = this.openai.beta.chat.completions.stream({
       model: "gpt-4o-mini",
       messages: [...systemPromptParam, ...chatHistory],
     });
 
-    // const assistantMessageId = uuid();
-    // client.emit('retrieve-assistant-message', assistantMessageId, workspaceId);
-
-    const tupleKey: WorkspaceMessageKey = [assistantMessageId, workspaceId];
-    const serializedKey = serializeTuple(tupleKey);
-
     const streamHandlers = {
       content: (contentDelta, contentSnapshot) => {
-        // client.emit('content', contentDelta, contentSnapshot, assistantMessageId, workspaceId)
         this.workspaceMessagesBufferProxy.set(serializedKey, [contentDelta, JSON.stringify(contentSnapshot)]);
-        this.workspaceMessagesBufferProxy.emit(serializedKey, 'debug-log', this.workspaceMessagesBufferProxy.get(serializedKey));
       },
       finalContent: (contentSnapshot) =>
-        client.emit('finalContent', contentSnapshot, workspaceId),
-      chunk: (chunk, snapshot) => client.emit('chunk', chunk, snapshot, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalContent', contentSnapshot, workspaceId),
+      chunk: (chunk, snapshot) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'chunk', chunk, snapshot, workspaceId),
       chatCompletion: async (completion) => {
         const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
         const usage = {
@@ -489,7 +559,7 @@ context_instructions: ${context_instructions}`;
           ...completion,
           usage: usage
         };
-        client.emit('chatCompletion', completionWithUsage, workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'chatCompletion', completionWithUsage, workspaceId);
       },
       finalChatCompletion: async (completion) => {
         const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
@@ -502,47 +572,39 @@ context_instructions: ${context_instructions}`;
           ...completion,
           usage: usage
         };
-        client.emit('finalChatCompletion', completionWithUsage, workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalChatCompletion', completionWithUsage, workspaceId);
       },
-      message: (message) => client.emit('message', message, workspaceId),
+      message: (message) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'message', message, workspaceId),
       finalMessage: async (message) => {
-        client.emit('finalMessage', message, workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalMessage', message, workspaceId);
         finalIntermediateResponse = message.content as string;
-        // try {
-        //   assistantController.insertChatHistory(
-        //     message,
-        //     uuid(),
-        //     workspaceId
-        //   );
-        // } catch (error) {
-        //   console.error('Error inserting chat history:', error);
-        // }
+        assistantController.insertChatHistory(
+          message,
+          assistantMessageId,
+          MessageType.Standard,
+          workspaceId
+        );
       },
-      functionCall: (functionCall) => client.emit('functionCall', functionCall, workspaceId),
+      functionCall: (functionCall) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'functionCall', functionCall, workspaceId),
       finalFunctionCall: (finalFunctionCall) =>
-        client.emit('finalFunctionCall', finalFunctionCall, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCall', finalFunctionCall, workspaceId),
       functionCallResult: (finalFunctionCallResult) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
       finalFunctionCallResult: (finalFunctionCallResult, workspaceId) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
       error: (error) => {
-        client.emit('error', error, workspaceId);
-        client.data.currentChatStream = undefined;
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'error', error, workspaceId);
       },
       end: () => {
-        this.workspaceMessagesBufferProxy.emit(serializedKey, 'end');
-        client.emit('end', workspaceId);
-        client.emit('debug-log', JSON.stringify({ debug: "Intermediate response ended." }))
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'end', workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'debug-log', JSON.stringify({ debug: "Intermediate response ended." }))
       },
     } as ChatCompletionEvents;
 
     Object.entries(streamHandlers).forEach(([event, handler]) => {
-      client.data.currentChatStream?.on(
+      stream.on(
         event as keyof typeof streamHandlers,
         async (...args: any) => {
-          // this.logger(
-          //   `Event: ${event}, Args: ${JSON.stringify(args, null, 2)}`,
-          // );
           await handler(...args);
         },
       );
@@ -550,10 +612,10 @@ context_instructions: ${context_instructions}`;
 
     // Wait until the stream is finished before returning the final response
     return new Promise<string>((resolve, reject) => {
-      client.data.currentChatStream?.on('end', () => {
+      stream.on('end', () => {
         resolve(finalIntermediateResponse);
       });
-      client.data.currentChatStream?.on('error', (error: any) => {
+      stream.on('error', (error: any) => {
         reject(error);
       });
     });
@@ -564,7 +626,6 @@ context_instructions: ${context_instructions}`;
     switch(commandTypeCompletion) {
       case commandTypeEnum.Values.create_module:
         const intermediateResponseMessage = await this.intermediateResponse(
-          client,
           subject,
           context_instructions,
           `The user needs to confirm if the wants to generate the module outline first or directly generate the module and let the system decide the outline directly without confirmation.`,

@@ -48,7 +48,7 @@ export interface EventsMap {
   'module-outline-generation'(confirmation: boolean, workspaceId: string, subject: string, context_instructions: string): void;
   'module-outline-inject-content'(workspaceId: string, assistantMessageId: string, moduleId: string, subject: string, context_instructions: string);
   'module-outline-data'(assistantMessageId: string, workspaceId: string, moduleId: string, moduleData: ModuleOutline);
-  'confirm-module-outline-response'(action: string, workspaceID: string);
+  'confirm-module-outline-response'(action: string, workspaceID: string, moduleId: string, module: Module, subject: string, context_instructions: string);
   //Module Specific
   'create-module'(moduleId: string, workspaceID: string, name: string, description: string, callback: (ack: string) => void);
   'update-module-node'(moduleId: string, moduleNodeId: string, workspaceId: string, contentDelta: string, contentSnapshot: string);

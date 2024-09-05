@@ -270,7 +270,7 @@ class SocketServer {
           { role: 'system', content: 'You are a helpful assistant.' },
         ],
       },
-      this.clients,
+      // this.clients,
       this.workspaceMessagesBufferProxy,
       this.workspaceModulesBufferProxy,
       );

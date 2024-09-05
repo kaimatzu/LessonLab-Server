@@ -88,10 +88,10 @@ class ModuleController {
   * @param description  The Module's description. This will be used by the AI model to generate the content.
   * @param workspaceId The Module's workspace to add to.
   */ 
-  async createModuleCallback(name: string, description: string, workspaceId: string) {
+  async createModuleCallback(name: string, description: string, workspaceId: string, createdModuleId?: string) {
     try {
       const connection = await getDbConnection();
-      const moduleId = uuidv4();
+      const moduleId = createdModuleId ? createdModuleId : uuidv4();
   
       // Create the new module
       await connection.execute(
@@ -530,7 +530,7 @@ class ModuleController {
   * @param res The response object.
   */ 
   async updateModuleNodeContent(req: Request, res: Response) {
-    if (req.method !== 'PUT') {
+    if (req.method !== 'PATCH') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
@@ -588,7 +588,7 @@ class ModuleController {
   * @param res The response object.
   */ 
   async updateModuleNodeTitle(req: Request, res: Response) {
-    if (req.method !== 'PUT') {
+    if (req.method !== 'PATCH') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
