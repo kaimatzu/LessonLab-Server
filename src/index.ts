@@ -7,6 +7,8 @@ import 'reflect-metadata'
 import http from 'http';
 import ExpressApp from "./expressApp";
 import SocketServer from "./socketServer";
+import { generate } from "shortid";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
@@ -60,7 +62,7 @@ class Server {
       fs.mkdirSync(exportsDir);
     }
 
-    this.setupWebHookRoutes();
+    this.setupExpressHookRoutes();
 
     const PORT = process.env.PORT || 4001;
     this.server.listen(PORT, () => {
@@ -68,7 +70,8 @@ class Server {
     });
   }
 
-  setupWebHookRoutes() {
+  setupExpressHookRoutes() {
+    // Paymongo webhook endpoint for recieving transaction statuses
     this.expressApp.app.post('/api/webhooks/paymongo', (req, res) => {
       console.log('Received webhook:', req.body);
       const paymentStatus = req.body.data.attributes.type;

@@ -2,14 +2,26 @@ import { Request, Response } from "express";
 import { getDbConnection } from "../utils/storage/database";
 import { v4 as uuidv4 } from "uuid";
 import jwt from 'jsonwebtoken';
+import Server from "../index";
+import { serializeTuple } from "../socketServer";
 
 class ModuleController {
 
   constructor() {
     this.createModule = this.createModule.bind(this);
+    this.createModuleCallback = this.createModuleCallback.bind(this);
     this.insertChildToModuleNode = this.insertChildToModuleNode.bind(this);
+    this.insertChildToModuleNodeCallback = this.insertChildToModuleNodeCallback.bind(this);
+    this.getModules = this.getModules.bind(this);
+    this.getModuleTree = this.getModuleTree.bind(this);
     this.getSubtree = this.getSubtree.bind(this);
     this.getSubtreeRecursively = this.getSubtreeRecursively.bind(this);
+    this.updateModuleNodeContent = this.updateModuleNodeContent.bind(this);
+    this.updateModuleNodeContentCallback = this.updateModuleNodeContentCallback.bind(this);
+    this.updateModuleNodeTitle = this.updateModuleNodeTitle.bind(this);
+    this.updateModuleNodeTitleCallback = this.updateModuleNodeTitleCallback.bind(this);
+    this.deleteModuleNode = this.deleteModuleNode.bind(this);
+    this.deleteModuleNodeCallback = this.deleteModuleNodeCallback.bind(this);
   }
 
   /**
@@ -25,14 +37,17 @@ class ModuleController {
       return res.status(403).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string };
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
 
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
   
-    const { name, description } = req.body;
-    if (!name) {
+    const { name, description, workspaceId } = req.body;
+    if (!name || !workspaceId) {
       return res.status(400).json({ message: 'Module name is required' });
     }
   
@@ -42,28 +57,111 @@ class ModuleController {
   
       // Create the new module
       await connection.execute(
-        'INSERT INTO module_Modules (ModuleID, Name, Description, UserID) VALUES (?, ?, ?, ?)',
-        [moduleId, name, description, decoded.userId]
+        'INSERT INTO module_Modules (ModuleID, Name, Description, WorkspaceID) VALUES (?, ?, ?, ?)',
+        [moduleId, name, description ? description : '', workspaceId]
       );
   
-      const moduleNodeID = uuidv4();
-      // Optionally create a root module node or initial structure
+      // Create a root module node or initial structure
       await connection.execute(
-        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content) VALUES (?, ?, ?)',
-        [moduleNodeID, '', '']
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+        [moduleId, '', '', moduleId]
       );
+
       await connection.execute(
         'INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position) VALUES (?, ?, ?, 0, 0)',
-        [moduleId, moduleNodeID, moduleNodeID]
+        [moduleId, moduleId, moduleId]
       );
   
       await connection.end();
-      return res.status(201).json({ message: 'Module created successfully', moduleId: moduleId, moduleNodeID: moduleNodeID });
+      return res.status(201).json({ message: 'Module created successfully', moduleId: moduleId, moduleNodeID: moduleId });
     } catch ( error ) {
       console.error('Error creating module:', error);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
   }
+
+  /**
+  * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
+  * Meant for internal server use and not exposed to the user API routes.
+  * 
+  * @param name The Module's name.
+  * @param description  The Module's description. This will be used by the AI model to generate the content.
+  * @param workspaceId The Module's workspace to add to.
+  */ 
+  async createModuleCallback(name: string, description: string, workspaceId: string) {
+    try {
+      const connection = await getDbConnection();
+      const moduleId = uuidv4();
+  
+      // Create the new module
+      await connection.execute(
+        'INSERT INTO module_Modules (ModuleID, Name, Description, WorkspaceID) VALUES (?, ?, ?, ?)',
+        [moduleId, name, description, workspaceId]
+      );
+  
+      // Create a root module node or initial structure
+      await connection.execute(
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+        [moduleId, '', '', moduleId]
+      );
+
+      await connection.execute(
+        'INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position) VALUES (?, ?, ?, 0, 0)',
+        [moduleId, moduleId, moduleId]
+      );
+  
+      await connection.end();
+      return ({ message: 'Module created successfully', moduleId: moduleId, moduleNodeID: moduleId });
+    } catch ( error ) {
+      console.error('Error creating module:', error);
+      return ({ message: 'Internal Server Error' });
+    }
+  }
+
+  /**
+  * Fetches all modules of a workspace.
+  * 
+  * @param req - The express request object.
+  * @param res - The express response object.
+  */
+  async getModules(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    if (req.method !== 'GET') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+  
+    const { moduleId: workspaceId } = req.params;
+  
+    if (!workspaceId) {
+      return res.status(400).json({ message: "Module ID" });
+    }
+  
+    try {
+      const connection = await getDbConnection();
+      const [rows]: any[] = await connection.execute(
+        `SELECT * FROM module_Modules WHERE WorkspaceID = ? ORDER BY CreatedAt`,
+        [workspaceId]
+      );
+
+      await connection.end();
+  
+      res.status(200).json(rows);
+    } catch (error) {
+      console.error('Error fetching subtree:', error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
 
   /**
   * Inserts a new child node under a specific module node.
@@ -102,8 +200,8 @@ class ModuleController {
   
       // Insert new module node as a child
       await connection.execute(
-        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content) VALUES (?, ?, ?)',
-        [moduleNodeID, title, content]
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+        [moduleNodeID, title, content, moduleId]
       );
   
       // Calculate the new position as the count of current siblings
@@ -138,8 +236,76 @@ class ModuleController {
       console.error('Error inserting module node child:', error);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
-  }
+  }    
 
+  /**
+  * Inserts a new child node under a specific module node.
+  * Meant for internal server use and not exposed to the user API routes.
+  * 
+  * @param parentNodeId The parent/ancestor of the new node to be inserted.
+  * @param moduleId The Module to insert the node in.
+  * @param content The node's content.
+  * @param title The node's title.
+  */ 
+  async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, title: string) {
+    try {
+      const connection = await getDbConnection();
+  
+      // Check if the module and parent node exist
+      const [moduleExists]: any = await connection.execute(
+        'SELECT COUNT(*) AS count FROM module_Modules WHERE ModuleID = ?',
+        [moduleId]
+      );
+      const [parentNodeExists]: any = await connection.execute(
+        'SELECT COUNT(*) AS count FROM module_ModuleNodes WHERE ModuleNodeID = ?',
+        [parentNodeId]
+      );
+  
+      if (moduleExists[0].count === 0 || parentNodeExists[0].count === 0) {
+        return ({ message: 'Module or Parent Node does not exist' });
+      }
+  
+      const moduleNodeID = moduleNodeId;
+  
+      // Insert new module node as a child
+      await connection.execute(
+        'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+        [moduleNodeID, title, content, moduleId]
+      );
+  
+      // Calculate the new position as the count of current siblings
+      const [positionData]: any = await connection.execute(
+        `SELECT COUNT(*) AS siblingCount FROM module_ModuleClosureTable 
+        WHERE Ancestor = ? AND Depth = (SELECT Depth + 1 FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?) 
+        AND ModuleID = ?`,
+        [parentNodeId, parentNodeId, moduleId, moduleId]
+      );
+
+      const newPosition = positionData[0].siblingCount;
+
+  
+      // First, fetch the depth separately
+      const [depthResult]: any = await connection.execute(
+        `SELECT Depth FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?`,
+        [parentNodeId, moduleId]
+      );
+
+      const newDepth = depthResult[0].Depth + 1;
+
+      // Now perform the insert
+      await connection.execute(
+        `INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position)
+        VALUES (?, ?, ?, ?, ?)`,
+        [moduleId, parentNodeId, moduleNodeID, newDepth, newPosition]
+      );
+
+      await connection.end();
+      return ({ message: 'Module node child added successfully', moduleNodeID: moduleNodeID });
+    } catch (error) {
+      console.error('Error inserting module node child:', error);
+      return ({ message: 'Internal Server Error' });
+    }
+  }   
 
   /**
   * Builds a hierarchical tree from a flat array of node relationships.
@@ -172,7 +338,81 @@ class ModuleController {
   }
 
   /**
-  * Fetches the tree or subtree via fetching and building the entire tree first, 
+  * Fetches the entire module tree structure via fetching and building the entire tree.
+  * 
+  * @param req - The express request object.
+  * @param res - The express response object.
+  */
+  async getModuleTree(req: Request, res: Response) {
+    const { moduleId } = req.params;
+  
+    if (!moduleId) {
+      return res.status(400).json({ message: "Module ID" });
+    }
+    
+    
+    
+    try {
+      const connection = await getDbConnection();
+
+      const [moduleRows]: any[] = await connection.execute(
+        `SELECT WorkspaceID FROM module_Modules WHERE ModuleID = ?`,
+        [moduleId]
+      );
+      
+      if (!moduleRows.length) {
+        throw new Error('Module not found');
+      }
+      
+      const workspaceId = moduleRows[0].WorkspaceID;
+      const serializedKey = serializeTuple([moduleId, workspaceId]);
+      const existingTreeData = Server.getInstance().socketServer.workspaceModulesBuffer.get(serializedKey);
+
+      if (existingTreeData) { // Return data from buffer
+        res.status(200).json({
+          WorkspaceID: workspaceId,
+          retrievalSource: 'buffer',
+          tree: existingTreeData
+        });
+      } else { // Return data from db
+        const [rows]: any[] = await connection.execute(
+          `SELECT 
+            mc.*, 
+            mn.Title, 
+            mn.Content
+          FROM 
+            module_ModuleClosureTable mc
+          JOIN 
+            module_ModuleNodes mn 
+          ON 
+            mc.Descendant = mn.ModuleNodeID
+          WHERE 
+            mc.ModuleID = ?`,
+          [moduleId]
+        );
+  
+        const nodeMap = this.buildFullTree(rows);
+        const tree = nodeMap.get(moduleId);
+  
+        if (!tree) throw new Error("Module Tree does not exist.")
+  
+        await connection.end();
+  
+        res.status(200).json({
+          WorkspaceID: workspaceId,
+          retrievalSource: 'database',
+          tree
+        });  
+      }
+
+    } catch (error) {
+      console.error('Error fetching subtree:', error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+  /**
+  * Fetches the subtree via fetching and building the entire tree first, 
   * and then returning the subtree of the specified part. This is faster in the
   * general case compared to the latter recursive version of the function, so this 
   * is the default function that is used.
@@ -283,6 +523,178 @@ class ModuleController {
     }
   }
 
+  /**
+  * Updates the content of a module node.
+  * 
+  * @param req The request object, expected to contain the module node ID and new content.
+  * @param res The response object.
+  */ 
+  async updateModuleNodeContent(req: Request, res: Response) {
+    if (req.method !== 'PUT') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const { moduleNodeId, content } = req.body;
+    if (!moduleNodeId || !content) {
+      return res.status(400).json({ message: 'Module Node ID and content are required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      
+      // Update content in the module node
+      await connection.execute(
+        'UPDATE module_ModuleNodes SET Content = ? WHERE ModuleNodeID = ?',
+        [content, moduleNodeId]
+      );
+
+      await connection.end();
+      return res.status(200).json({ message: 'Module node content updated successfully' });
+    } catch (error) {
+      console.error('Error updating module node content:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+  /**
+  * Updates the content of a module node.
+  * Meant for internal server use and not exposed to the user API routes.
+  * 
+  * @param moduleNodeId The ID of the module node to update.
+  * @param content The new content for the module node.
+  */
+  async updateModuleNodeContentCallback(moduleNodeId: string, content: string) {
+    try {
+      const connection = await getDbConnection();
+      
+      // Update content in the module node
+      await connection.execute(
+        'UPDATE module_ModuleNodes SET Content = ? WHERE ModuleNodeID = ?',
+        [content, moduleNodeId]
+      );
+
+      await connection.end();
+      return { message: 'Module node content updated successfully' };
+    } catch (error) {
+      console.error('Error updating module node content:', error);
+      return { message: 'Internal Server Error' };
+    }
+  }
+
+  /**
+  * Updates the title of a module node.
+  * 
+  * @param req The request object, expected to contain the module node ID and new title.
+  * @param res The response object.
+  */ 
+  async updateModuleNodeTitle(req: Request, res: Response) {
+    if (req.method !== 'PUT') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const { moduleNodeId, title } = req.body;
+    if (!moduleNodeId || !title) {
+      return res.status(400).json({ message: 'Module Node ID and title are required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      
+      // Update title in the module node
+      await connection.execute(
+        'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
+        [title, moduleNodeId]
+      );
+
+      await connection.end();
+      return res.status(200).json({ message: 'Module node title updated successfully' });
+    } catch (error) {
+      console.error('Error updating module node title:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+  /**
+  * Updates the title of a module node.
+  * Meant for internal server use and not exposed to the user API routes.
+  * 
+  * @param moduleNodeId The ID of the module node to update.
+  * @param title The new title for the module node.
+  */
+  async updateModuleNodeTitleCallback(moduleNodeId: string, title: string) {
+    try {
+      const connection = await getDbConnection();
+      
+      // Update title in the module node
+      await connection.execute(
+        'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
+        [title, moduleNodeId]
+      );
+
+      await connection.end();
+      return { message: 'Module node title updated successfully' };
+    } catch (error) {
+      console.error('Error updating module node title:', error);
+      return { message: 'Internal Server Error' };
+    }
+  }
+
+  /**
+  * Deletes a module node.
+  * 
+  * @param req The request object, expected to contain the module node ID.
+  * @param res The response object.
+  */ 
+  async deleteModuleNode(req: Request, res: Response) {
+    if (req.method !== 'DELETE') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const { moduleNodeId } = req.body;
+    if (!moduleNodeId) {
+      return res.status(400).json({ message: 'Module Node ID is required' });
+    }
+
+    try {
+      const connection = await getDbConnection();
+      
+      // Delete the module node
+      await connection.execute(
+        'DELETE FROM module_ModuleNodes WHERE ModuleNodeID = ?',
+        [moduleNodeId]
+      );
+
+      await connection.end();
+      return res.status(200).json({ message: 'Module node deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting module node:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
+
+  /**
+  * Deletes a module node.
+  * Meant for internal server use and not exposed to the user API routes.
+  * 
+  * @param moduleNodeId The ID of the module node to delete.
+  */
+  async deleteModuleNodeCallback(moduleNodeId: string) {
+    try {
+      const connection = await getDbConnection();
+      
+      // Delete the module node
+      await connection.execute(
+        'DELETE FROM module_ModuleNodes WHERE ModuleNodeID = ?',
+        [moduleNodeId]
+      );
+
+      await connection.end();
+      return { message: 'Module node deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting module node:', error);
+      return { message: 'Internal Server Error' };
+    }
+  }
 }
 
 export default new ModuleController();

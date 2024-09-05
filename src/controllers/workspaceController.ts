@@ -38,7 +38,7 @@ class WorkspaceController {
    * @param res The response data
    */
   async createWorkspace(req: Request, res: Response) {
-    const { workspaceName, workspaceType } = req.body
+    const { workspaceName } = req.body
 
     const token = req.cookies.authToken;
 
@@ -52,60 +52,12 @@ class WorkspaceController {
     
     try {
       const connection = await getDbConnection()
-      await connection.execute(
-        'INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)', 
+      await connection.execute('INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)', 
         [workspaceId, workspaceName, decoded.userId])
 
-      let entryId: string;
-
-      // Insert into Lessons or Quizzes table based on workspaceType
-      if (workspaceType === 'LESSON') {
-        entryId = uuidv4();
-        await connection.execute(
-          'INSERT INTO Lessons (LessonID, WorkspaceID) VALUES (?, ?)',
-          [entryId, workspaceId]
-        );
-      } else if (workspaceType === 'QUIZ') {
-        entryId = uuidv4();
-        await connection.execute(
-          'INSERT INTO Quizzes (QuizID, WorkspaceID) VALUES (?, ?)',
-          [entryId, workspaceId]
-        );
-      } else {
-        await connection.end();
-        return res.status(400).json({ message: 'Invalid workspace type' });
-      }
-
-    // Retrieve the created workspace and corresponding entry
-    const query = `
-      SELECT 
-        m.WorkspaceID, 
-        m.WorkspaceName, 
-        m.UserID,
-        m.CreatedAt,
-        CASE 
-          WHEN l.WorkspaceID IS NOT NULL THEN 'LESSON'
-          WHEN q.WorkspaceID IS NOT NULL THEN 'QUIZ'
-          ELSE 'UNKNOWN'
-        END AS WorkspaceType
-      FROM Workspaces m
-      LEFT JOIN Lessons l ON m.WorkspaceID = l.WorkspaceID
-      LEFT JOIN Quizzes q ON m.WorkspaceID = q.WorkspaceID
-      WHERE m.WorkspaceID = ?
-    `;
-
-    const rows: any = await connection.execute(query, [workspaceId]);
-    const result = rows[0];
+      await connection.end();
     
-    // Insert into Specifications table
-    const specificationId = uuidv4();
-    await connection.execute(
-      'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?, ?)', 
-      [specificationId, '', '', 'Elementary', 'Simple', workspaceId]);
-
-    await connection.end();
-    const workspace = result[0];
-    return res.status(201).json({ workspace, specificationID: specificationId });
+      return res.status(201).json({ workspaceId });
 
     } catch (error) {
       console.error(error)
@@ -384,19 +336,6 @@ class WorkspaceController {
     try {
       const connection = await getDbConnection();
       
-      // Check if there are multiple specifications associated with the workspace
-      const [specifications]: any = await connection.execute(
-        `SELECT COUNT(*) as count FROM Specifications WHERE WorkspaceID = ?`,
-        [WorkspaceID]
-      );
-
-      const count = specifications[0].count;
-
-      if (count <= 1) {
-        await connection.end();
-        return res.status(400).json({ message: 'Cannot delete the last specification associated with the workspace' });
-      }
-
       await connection.execute(
         `DELETE FROM Specifications WHERE SpecificationID = ?`,
         [SpecificationID]

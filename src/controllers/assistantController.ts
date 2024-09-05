@@ -63,12 +63,12 @@ class AssistantController {
  * @param workspaceID - The workspace's ID to insert the chat history to.
  * @returns A promise that resolves to the operation's status or rejects with an error.
  */
-async insertChatHistory(message: Message, messageId: string, workspaceID: string): Promise<void> {
+async insertChatHistory(message: Message, messageId: string, messageType: string, workspaceID: string): Promise<void> {
   try {
     const connection = await getDbConnection();
     await connection.execute(
-      'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `WorkspaceID`) VALUES (?, ?, ?, ?)', 
-      [messageId, message.content, message.role, workspaceID]
+      'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `Type`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)', 
+      [messageId, message.content, message.role, messageType, workspaceID]
     );
 
     await connection.end();
