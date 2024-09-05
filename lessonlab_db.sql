@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 19, 2024 at 12:42 PM
+-- Generation Time: Sep 05, 2024 at 10:27 AM
 -- Server version: 8.0.39-0ubuntu0.22.04.1
 -- PHP Version: 8.2.4
 
@@ -20,8 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Database: `lessonlab_db`
 --
-CREATE DATABASE IF NOT EXISTS `lessonlab_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-USE `lessonlab_db`;
 
 -- --------------------------------------------------------
 
@@ -56,11 +54,12 @@ CREATE TABLE `Answers` (
 --
 
 CREATE TABLE `ChatHistory` (
-  `ChatID` int NOT NULL,
-  `Message` text,
-  `Role` enum('USER','SYSTEM') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'USER',
-  `Timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `MaterialID` char(36) DEFAULT NULL
+  `MessageID` char(36) NOT NULL,
+  `Content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
+  `Role` enum('user','assistant') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'user',
+  `Type` enum('standard','action') NOT NULL DEFAULT 'standard',
+  `CreatedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -160,7 +159,8 @@ CREATE TABLE `module_ModuleNodes` (
   `ModuleNodeID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `CreateAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+  `CreateAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `ModuleID` char(36) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -174,7 +174,7 @@ CREATE TABLE `module_Modules` (
   `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `CreatedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `UserID` char(36) DEFAULT NULL
+  `WorkspaceID` char(36) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -282,8 +282,8 @@ ALTER TABLE `Answers`
 -- Indexes for table `ChatHistory`
 --
 ALTER TABLE `ChatHistory`
-  ADD PRIMARY KEY (`ChatID`),
-  ADD KEY `MaterialID` (`MaterialID`);
+  ADD PRIMARY KEY (`MessageID`),
+  ADD KEY `ChatHistory_ibfk_1` (`WorkspaceID`);
 
 --
 -- Indexes for table `Classes`
@@ -325,14 +325,15 @@ ALTER TABLE `module_ModuleClosureTable`
 -- Indexes for table `module_ModuleNodes`
 --
 ALTER TABLE `module_ModuleNodes`
-  ADD PRIMARY KEY (`ModuleNodeID`);
+  ADD PRIMARY KEY (`ModuleNodeID`),
+  ADD KEY `module_ibfk_2` (`ModuleID`);
 
 --
 -- Indexes for table `module_Modules`
 --
 ALTER TABLE `module_Modules`
   ADD PRIMARY KEY (`ModuleID`),
-  ADD KEY `fk_user_id` (`UserID`);
+  ADD KEY `fk_workspace_id` (`WorkspaceID`);
 
 --
 -- Indexes for table `Pages`
@@ -387,12 +388,6 @@ ALTER TABLE `Answers`
   MODIFY `AnswerID` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `ChatHistory`
---
-ALTER TABLE `ChatHistory`
-  MODIFY `ChatID` int NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `Questions`
 --
 ALTER TABLE `Questions`
@@ -418,7 +413,7 @@ ALTER TABLE `Answers`
 -- Constraints for table `ChatHistory`
 --
 ALTER TABLE `ChatHistory`
-  ADD CONSTRAINT `ChatHistory_ibfk_1` FOREIGN KEY (`MaterialID`) REFERENCES `Workspaces` (`WorkspaceID`);
+  ADD CONSTRAINT `ChatHistory_ibfk_1` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `Classes`
@@ -454,10 +449,16 @@ ALTER TABLE `module_ModuleClosureTable`
   ADD CONSTRAINT `module_ModuleClosureTable_ibfk_3` FOREIGN KEY (`ModuleID`) REFERENCES `module_Modules` (`ModuleID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Constraints for table `module_ModuleNodes`
+--
+ALTER TABLE `module_ModuleNodes`
+  ADD CONSTRAINT `module_ibfk_2` FOREIGN KEY (`ModuleID`) REFERENCES `module_Modules` (`ModuleID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `module_Modules`
 --
 ALTER TABLE `module_Modules`
-  ADD CONSTRAINT `fk_user_id` FOREIGN KEY (`UserID`) REFERENCES `Users` (`UserID`);
+  ADD CONSTRAINT `fk_workspace_id` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `Questions`
