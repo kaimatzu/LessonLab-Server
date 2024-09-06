@@ -15,7 +15,7 @@ class ContextController {
   }
 
   /**
-   * Adds a new document.
+   * Generates the context for normal chats
    * @param req - The request object.
    * @param res - The response object.
    * @returns A promise that resolves to the added document.

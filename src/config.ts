@@ -17,3 +17,8 @@ const config: Config = {
 };
 
 export default config;
+
+export const corsOptions = {
+  origin: 'http://localhost:4000', // Specify the client origin (TODO: change later in deployment)
+  credentials: true, // Allow credentials (cookies, etc.)
+};
