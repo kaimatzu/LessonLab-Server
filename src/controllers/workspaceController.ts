@@ -55,7 +55,7 @@ class WorkspaceController {
       await connection.execute('INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)',
         [workspaceId, workspaceName, decoded.userId])
 
-      res.status(201).json({ workspaceId, workspaceName });
+      res.status(201).json({ workspace: { WorkspaceID: workspaceId, WorkspaceName: workspaceName, specificationID: null, WorkspaceType: null } });
       res.send();
 
       await connection.end();
