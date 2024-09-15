@@ -25,7 +25,7 @@ class WorkspaceController {
     this.updateAdditionalSpecification = this.updateAdditionalSpecification.bind(this)
     this.rearrangeAdditionalSpecification = this.rearrangeAdditionalSpecification.bind(this)
 
-    this.createLessonPage = this.createLessonPage.bind(this) 
+    this.createLessonPage = this.createLessonPage.bind(this)
     this.getLessonPages = this.getLessonPages.bind(this)
     this.updatePageTitle = this.updatePageTitle.bind(this)
     this.updatePageContent = this.updatePageContent.bind(this)
@@ -49,16 +49,16 @@ class WorkspaceController {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string) as { userId: string, username: string, userType: string, name: string, email: string };
 
     const workspaceId = uuidv4()
-    
+
     try {
       const connection = await getDbConnection()
-      await connection.execute('INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)', 
+      await connection.execute('INSERT INTO Workspaces (`WorkspaceID`, `WorkspaceName`, `UserID`) VALUES (?, ?, ?)',
         [workspaceId, workspaceName, decoded.userId])
 
-      await connection.end();
-    
-      return res.status(201).json({ workspaceId });
+      res.status(201).json({ workspaceId, workspaceName });
+      res.send();
 
+      await connection.end();
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error. ' + error })
@@ -111,7 +111,7 @@ class WorkspaceController {
       console.error('Error getting DB connection:', error);
       return res.status(500).json({ error: 'DB connection error' });
     }
-  
+
     try {
       const query = `
         SELECT 
@@ -130,16 +130,16 @@ class WorkspaceController {
         WHERE m.UserID = ?
         ORDER BY m.CreatedAt DESC
       `;
-  
+
       const rows: any = await connection.execute(query, [decoded.userId]).catch(error => {
         console.error('Error executing query:', error);
         return res.status(500).json({ error: 'DB query execution error' });
       });
-  
+
       await connection.end().catch(error => {
         console.error('Error closing DB connection:', error);
       });
-  
+
       if (rows.length === 0) {
         return res.status(200).json([]); // Return an empty JSON array if no workspaces are found
       }
@@ -187,7 +187,7 @@ class WorkspaceController {
     }
   }
 
-  
+
   /**
    * 
    * @param req The request object
@@ -219,23 +219,23 @@ class WorkspaceController {
   ////////Workspace Specifications///////
   //////////////////////////////////////
 
-/**
- * Retrieves all the Specifications associated with a given Workspace.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Retrieves all the Specifications associated with a given Workspace.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
 
   async getSpecifications(req: Request, res: Response) {
     if (req.method !== 'GET') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const token = req.cookies.authToken;
     if (!token) {
       return res.status(403).json({ message: 'No token provided' });
     }
-  
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
     if (!decoded) {
       return res.status(403).json({ message: 'Invalid token' });
@@ -262,12 +262,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Inserts a new Specification associated with a given Workspace.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Inserts a new Specification associated with a given Workspace.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async insertSpecification(req: Request, res: Response) {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
@@ -293,7 +293,7 @@ class WorkspaceController {
       const connection = await getDbConnection();
       const SpecificationID = uuidv4();
       await connection.execute(
-        'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?, ?)', 
+        'INSERT INTO Specifications (`SpecificationID`, `Name`, `Topic`, `WritingLevel`, `ComprehensionLevel`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?, ?)',
         [SpecificationID, '', '', 'Elementary', 'Simple', WorkspaceID]);
 
 
@@ -305,13 +305,13 @@ class WorkspaceController {
     }
   }
 
-/**
- * Deletes a Specification associated with a given Workspace.
- * Prevents deleting if it is the last specification associated with the Workspace.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Deletes a Specification associated with a given Workspace.
+   * Prevents deleting if it is the last specification associated with the Workspace.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async deleteSpecification(req: Request, res: Response) {
     if (req.method !== 'DELETE') {
       return res.status(405).json({ message: 'Method Not Allowed' });
@@ -335,7 +335,7 @@ class WorkspaceController {
 
     try {
       const connection = await getDbConnection();
-      
+
       await connection.execute(
         `DELETE FROM Specifications WHERE SpecificationID = ?`,
         [SpecificationID]
@@ -350,12 +350,12 @@ class WorkspaceController {
   }
 
 
-/**
- * Updates the name for a given specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Updates the name for a given specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async updateSpecificationName(req: Request, res: Response) {
     const { SpecificationID, Name } = req.body;
 
@@ -374,14 +374,14 @@ class WorkspaceController {
       console.error("Error updating specification name:", error);
       return res.status(500).json({ error: 'DB connection error' });
     }
-  }  
+  }
 
-/**
- * Updates the topic for a given specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Updates the topic for a given specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async updateSpecificationTopic(req: Request, res: Response) {
     const { SpecificationID, Topic } = req.body;
 
@@ -402,12 +402,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Updates the writing level for a given specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Updates the writing level for a given specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async updateSpecificationWritingLevel(req: Request, res: Response) {
     const { SpecificationID, WritingLevel } = req.body;
 
@@ -428,12 +428,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Updates the comprehension level for a given specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Updates the comprehension level for a given specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async updateSpecificationComprehensionLevel(req: Request, res: Response) {
     const { SpecificationID, ComprehensionLevel } = req.body;
 
@@ -454,12 +454,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Retrieves additional specifications for a given SpecificationID.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Retrieves additional specifications for a given SpecificationID.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async getAdditionalSpecifications(req: Request, res: Response) {
     const { SpecificationID } = req.params;
 
@@ -485,12 +485,12 @@ class WorkspaceController {
   }
 
 
-/**
- * Handles the insertion of a new additional specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Handles the insertion of a new additional specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async insertAdditionalSpecification(req: Request, res: Response) {
     const { SpecificationID, LastAdditionalSpecificationID } = req.body;
 
@@ -531,12 +531,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Updates an additional specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Updates an additional specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async updateAdditionalSpecification(req: Request, res: Response) {
     const { AdditionalSpecID, SpecificationText } = req.body;
 
@@ -573,12 +573,12 @@ class WorkspaceController {
     }
   };
 
-/**
- * Handles the removal of an additional specification.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Handles the removal of an additional specification.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async removeAdditionalSpecification(req: Request, res: Response) {
     const { AdditionalSpecID } = req.params;
 
@@ -633,12 +633,12 @@ class WorkspaceController {
   }
 
 
-/**
- * Handles the rearrangement of additional specifications.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Handles the rearrangement of additional specifications.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async rearrangeAdditionalSpecification(req: Request, res: Response) {
     const { specToMoveId, newPrevId, newNextId } = req.body;
 
@@ -709,12 +709,12 @@ class WorkspaceController {
   ////////      Lesson Pages     ///////
   //////////////////////////////////////
 
-/**
- * Handles the creation of new Lesson Pages.
- *
- * @param req - The request object.
- * @param res - The response object.
- */
+  /**
+   * Handles the creation of new Lesson Pages.
+   *
+   * @param req - The request object.
+   * @param res - The response object.
+   */
   async createLessonPage(req: Request, res: Response) {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
@@ -739,7 +739,7 @@ class WorkspaceController {
     try {
       const connection = await getDbConnection();
       const PageID = uuidv4();
-      
+
       if (LastPageID) {
         // Insert new page with PrevID as LastPageID
         await connection.execute(
@@ -768,12 +768,12 @@ class WorkspaceController {
     }
   }
 
-/**
- * Retrieves all Pages of a Lesson.
- * 
- * @param req The request object
- * @param res The response data
- */
+  /**
+   * Retrieves all Pages of a Lesson.
+   * 
+   * @param req The request object
+   * @param res The response data
+   */
   async getLessonPages(req: Request, res: Response) {
     const token = req.cookies.authToken;
 
@@ -785,7 +785,7 @@ class WorkspaceController {
     if (!decoded) {
       return res.status(403).json({ message: 'Invalid token' });
     }
-    
+
     const { lessonId } = req.params;
 
     let connection;
@@ -795,19 +795,19 @@ class WorkspaceController {
       console.error('Error getting DB connection:', error);
       return res.status(500).json({ error: 'DB connection error' });
     }
-  
+
     try {
       const rows: any = await connection.execute(
-        `SELECT * FROM Pages WHERE LessonID = ? ORDER BY PrevID`, 
+        `SELECT * FROM Pages WHERE LessonID = ? ORDER BY PrevID`,
         [lessonId]).catch(error => {
-        console.error('Error executing query:', error);
-        return res.status(500).json({ error: 'DB query execution error' });
-      });
-  
+          console.error('Error executing query:', error);
+          return res.status(500).json({ error: 'DB query execution error' });
+        });
+
       await connection.end().catch(error => {
         console.error('Error closing DB connection:', error);
       });
-  
+
       if (rows.length === 0) {
         return res.status(200).json([]); // Return an empty JSON array if no pages are found
       }
@@ -819,90 +819,90 @@ class WorkspaceController {
     }
   }
 
-/**
- * Updates the title of a specific lesson page.
- * 
- * @param req The request object, expected to contain the pageId, new title, and the lessonId.
- * @param res The response object.
- */
+  /**
+   * Updates the title of a specific lesson page.
+   * 
+   * @param req The request object, expected to contain the pageId, new title, and the lessonId.
+   * @param res The response object.
+   */
   async updatePageTitle(req: Request, res: Response) {
     const token = req.cookies.authToken;
     if (!token) {
-        return res.status(403).json({ message: 'No token provided' });
+      return res.status(403).json({ message: 'No token provided' });
     }
 
     try {
-        jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+      jwt.verify(token, process.env.JWT_SECRET_KEY as string);
     } catch (error) {
-        return res.status(403).json({ message: 'Invalid token' });
+      return res.status(403).json({ message: 'Invalid token' });
     }
 
     const { pageId, lessonId, newTitle } = req.body;
     if (!pageId || !lessonId || !newTitle) {
-        return res.status(400).json({ message: 'Page ID, Lesson ID, and New Title are required' });
+      return res.status(400).json({ message: 'Page ID, Lesson ID, and New Title are required' });
     }
 
     try {
-        const connection = await getDbConnection();
-        await connection.execute(
-            `UPDATE Pages SET PageTitle = ? WHERE PageID = ? AND LessonID = ?`,
-            [newTitle, pageId, lessonId]
-        );
+      const connection = await getDbConnection();
+      await connection.execute(
+        `UPDATE Pages SET PageTitle = ? WHERE PageID = ? AND LessonID = ?`,
+        [newTitle, pageId, lessonId]
+      );
 
-        await connection.end();
-        return res.status(200).json({ message: 'Page title updated successfully' });
+      await connection.end();
+      return res.status(200).json({ message: 'Page title updated successfully' });
     } catch (error) {
-        console.error('Error updating page title:', error);
-        return res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error updating page title:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 
-/**
- * Updates the content of a specific lesson page.
- * 
- * @param req The request object, expected to contain the pageId, new content, and the lessonId.
- * @param res The response object.
- */
+  /**
+   * Updates the content of a specific lesson page.
+   * 
+   * @param req The request object, expected to contain the pageId, new content, and the lessonId.
+   * @param res The response object.
+   */
   async updatePageContent(req: Request, res: Response) {
     const token = req.cookies.authToken;
     if (!token) {
-        return res.status(403).json({ message: 'No token provided' });
+      return res.status(403).json({ message: 'No token provided' });
     }
 
     try {
-        jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+      jwt.verify(token, process.env.JWT_SECRET_KEY as string);
     } catch (error) {
-        return res.status(403).json({ message: 'Invalid token' });
+      return res.status(403).json({ message: 'Invalid token' });
     }
 
     const { pageId, lessonId, newContent } = req.body;
     console.log("Update page content:", pageId, lessonId, newContent)
-    
+
     if (!pageId || !lessonId || !newContent) {
-        return res.status(400).json({ message: 'Page ID, Lesson ID, and New Content are required' });
-      }
+      return res.status(400).json({ message: 'Page ID, Lesson ID, and New Content are required' });
+    }
 
     try {
-        const connection = await getDbConnection();
-        await connection.execute(
-            `UPDATE Pages SET Content = ? WHERE PageID = ? AND LessonID = ?`,
-            [newContent, pageId, lessonId]
-        );
+      const connection = await getDbConnection();
+      await connection.execute(
+        `UPDATE Pages SET Content = ? WHERE PageID = ? AND LessonID = ?`,
+        [newContent, pageId, lessonId]
+      );
 
-        await connection.end();
-        return res.status(200).json({ message: 'Page content updated successfully' });
+      await connection.end();
+      return res.status(200).json({ message: 'Page content updated successfully' });
     } catch (error) {
-        console.error('Error updating page content:', error);
-        return res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error updating page content:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 
-/**
- * Retrieves all Pages of a Lesson.
- * 
- * @param req The request object
- * @param res The response data
-*/
+  /**
+   * Retrieves all Pages of a Lesson.
+   * 
+   * @param req The request object
+   * @param res The response data
+  */
   async deleteLessonPage(req: Request, res: Response) {
     const token = req.cookies.authToken;
 
@@ -926,18 +926,18 @@ class WorkspaceController {
       await connection.beginTransaction();
 
       const [page]: any = await connection.execute(
-        `SELECT * FROM Pages WHERE PageID = ? AND LessonID = ?`, 
+        `SELECT * FROM Pages WHERE PageID = ? AND LessonID = ?`,
         [pageId, lessonId]
       );
 
       if (page.length === 0) {
-        await connection.rollback(); 
+        await connection.rollback();
         return res.status(404).json({ message: 'Page not found' });
       }
 
       // Proceed to delete the page
       await connection.execute(
-        `DELETE FROM Pages WHERE PageID = ? AND LessonID = ?`, 
+        `DELETE FROM Pages WHERE PageID = ? AND LessonID = ?`,
         [pageId, lessonId]
       );
 
@@ -946,7 +946,7 @@ class WorkspaceController {
     } catch (error) {
       console.error('Database error:', error);
       if (connection) {
-        await connection.rollback(); 
+        await connection.rollback();
       }
       return res.status(500).json({ error: 'Internal Server Error' });
     } finally {
