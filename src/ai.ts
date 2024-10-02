@@ -399,12 +399,12 @@ class AISocketHandler {
           }
       
           const systemPrompt = 
-          `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied, inform the user by saying something along the lines of: "The system did not find the relevant information..." but try to answer as accurately as possible. Otherwise if there is relevant context information available, just answer normally based on the available information.
+          `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied (i.e. the context information block is empty), inform the user by saying something along the lines of: "The system did not find the relevant information..." but try to answer as accurately as possible. Otherwise if there is relevant context information available, just answer normally based on the available information.
 
           subject: ${intentDecompositionCompletion.parsed.subject}
           context_instructions: ${intentDecompositionCompletion.parsed.context_instructions}
 
-          CONTEXT INFORMATION:
+          CONTEXT INFORMATION BLOCK:
           ---
           ${context}
           ---
