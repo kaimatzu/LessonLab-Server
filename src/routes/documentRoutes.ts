@@ -14,14 +14,11 @@ router.post("/add", (req, res) => {
   documentController.addDocuments(req, res);
 });
 
-router.delete(
-  "/files/delete/:namespaceId/:documentId",
-  documentController.deleteDocument
-);
-
 router.delete("/workspace/:namespaceId", documentController.deleteWorkspace);
 
 router.get("/files/:namespaceId", documentController.listFilesInNamespace);
 router.get("/files/:namespaceId/:documentId/(*)",  documentController.serveDocument);
+
+router.delete("/files/delete/:namespaceId/:documentId", documentController.deleteDocument);
 
 export default router;

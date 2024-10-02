@@ -10,15 +10,15 @@ export class ServerStorage implements StorageService {
   async saveFile(file: Express.Multer.File, fileKey: string): Promise<void> {
     const [namespaceId, documentId, ...rest] = fileKey.split("/");
     const fileName = rest.join("/");
-    const documentDirectory = path.join(
-      this.uploadDir,
-      namespaceId,
-      documentId
-    );
+    // const documentDirectory = path.join(
+    //   this.uploadDir,
+    //   namespaceId,
+    //   documentId
+    // );
 
-    if (!fs.existsSync(documentDirectory)) {
-      fs.mkdirSync(documentDirectory, { recursive: true });
-    }
+    // if (!fs.existsSync(documentDirectory)) {
+    //   fs.mkdirSync(documentDirectory, { recursive: true });
+    // }
 
     // const destinationPath = path.join(documentDirectory, fileName);
     // await fs.promises.rename(file.path, destinationPath);
@@ -26,7 +26,7 @@ export class ServerStorage implements StorageService {
     console.log("Save file SQL params: ", [file.buffer, file.mimetype, fileName, documentId, namespaceId]);
     
     const connection = await getDbConnection();
-    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `MaterialID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, fileName, documentId, namespaceId]);
+    await connection.execute("INSERT INTO `Documents` (`DocumentData`, `DocumentType`, `DocumentName`, `DocumentID`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)", [file.buffer, file.mimetype, fileName, documentId, namespaceId]);
     await connection.end();
   }
 
@@ -55,25 +55,33 @@ export class ServerStorage implements StorageService {
     documentId: string
   ): Promise<void> {
     try {
-      const documentDirectory = path.join(
-        this.uploadDir,
-        namespaceId,
-        documentId
+      const connection = await getDbConnection();
+
+      // Delete the document from the database
+      await connection.execute(
+        "DELETE FROM `Documents` WHERE `WorkspaceID` = ? AND `DocumentID` = ?",
+        [namespaceId, documentId]
       );
+
+      // Delete the file from the storage (if you still want to handle local deletion)
+      const documentDirectory = path.join(this.uploadDir, namespaceId, documentId);
       if (fs.existsSync(documentDirectory)) {
         fs.rmdirSync(documentDirectory, { recursive: true });
       }
+
+      await connection.end();
     } catch (error) {
       console.error("Failed to delete file from server storage:", error);
       throw error;
     }
   }
 
+
   async listFilesInNamespace(namespaceId: string): Promise<FileDetail[]> {
     const connection = await getDbConnection();
     try {
       const [rows]: any = await connection.execute(
-        "SELECT `DocumentID`, `DocumentName` FROM `Documents` WHERE `MaterialID` = ?",
+        "SELECT `DocumentID`, `DocumentName` FROM `Documents` WHERE `WorkspaceID` = ?",
         [namespaceId]
       );
       await connection.end();

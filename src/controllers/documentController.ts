@@ -10,12 +10,11 @@ import multer from "multer";
 import path from "path";
 import { Document, DocumentModel } from "../models/documentModel";
 import { v4 as uuidv4 } from "uuid";
-import storageService from "../utils/services/storageService";
-import workerService from "../utils/services/workerService";
-import { ServerStorage } from "../utils/storage/serverStorage";
-import { SpacesStorage } from "../utils/storage/spacesStorage";
 import { upload } from "../utils/multer";
 import jwt from 'jsonwebtoken';
+import { storageService } from "../../src/utils/storage/storage";
+import { ServerStorage } from "../../src/utils/storage/serverStorage";
+import { SpacesStorage } from "../../src/utils/storage/spacesStorage";
 
 class DocumentController {
   private documentModel: DocumentModel;
@@ -89,15 +88,6 @@ class DocumentController {
         return res.status(400).json({ message: "File upload error" });
       }
 
-      const isNewWorkspace = req.body.newWorkspace === "true";
-      if (isNewWorkspace) {
-        namespaceId = uuidv4();
-      } else if (!namespaceId) {
-        return res
-          .status(400)
-          .json({ message: "Missing required field: namespaceId" });
-      }
-
       const filesObject = req.files as {
         [fieldname: string]: Express.Multer.File[];
       };
@@ -118,34 +108,22 @@ class DocumentController {
           const workerPath = path.join(__dirname, "../utils/workers/fileProcessorWorker");
           const worker = new Worker(workerPath, {
             workerData: {
-              documentData: fs.readFileSync(file.path), // Pass the file data to the worker
+              documentData: file.buffer, // Pass the file data to the worker
               documentType: file.mimetype,
               documentName: file.originalname,
               documentId,
-              documentUrl, 
+              documentUrl: documentUrl, 
               materialId: namespaceId,
             },
           });
-          
-          // workerService.setDocumentData(decoded.userId, file, namespaceId);
-
-          // workerService.createWorker(decoded.userId);
-          
-          // const worker = workerService.getWorker(decoded.userId);
-          // if (!worker) {
-          //   return reject(new Error("Worker is not initialized"));
-          // }
       
           worker.on("message", (result: any) => {
             if (result.error) {
               reject(new Error(result.error));
             } else {
-              // console.log(result.documentContent)
-              // Update the file buffer with the processed document data
               file.buffer = Buffer.from(result.documentData);
       
               // Save the file to storage
-              // const fileKey = workerService.getFileKey(decoded.userId);
               if (!fileKey) {
                 return reject(new Error("File key not found"));
               }
@@ -167,8 +145,6 @@ class DocumentController {
           });
         });
       });
-      
-      // workerService.destructor(decoded.userId);
 
       try {
         const documents = await Promise.all(workerPromises);
@@ -229,8 +205,9 @@ class DocumentController {
    * @returns A promise that resolves to the deleted document.
    */
   async deleteDocument(req: Request, res: Response) {
-    const documentId = req.params.documentId;
-    const namespaceId = req.params.namespaceId;
+    // const documentId = req.params.documentId;
+    // const namespaceId = req.params.namespaceId;
+    const { namespaceId, documentId } = req.params;
 
     try {
       // Delete the document chunks from Pinecone
@@ -309,7 +286,7 @@ class DocumentController {
 
       try {
         // Delete the relevant folder from storage
-        await storageService.deleteWorkspaceFiles(namespaceId);
+        // await storageService.deleteWorkspaceFiles(namespaceId);
       } catch (error) {
         console.error("Failed to delete namespace from Spaces:", error);
         // Log the error and continue with the response

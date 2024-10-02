@@ -7,12 +7,7 @@ export async function getDbConnection() {
   try {
     const port = process.env.DBPORT ? parseInt(process.env.DBPORT, 10) : 3306;
 
-    console.log('Connecting to MySQL with the following details:');
-    console.log(`Host: ${process.env.HOST}`);
-    console.log(`Port: ${port}`);
-    console.log(`User: ${process.env.DBUSER}`);
-    console.log(`Password: ${process.env.PASSWORD}`);
-    console.log(`Database: ${process.env.DATABASE}`);
+    console.log('Connecting to MySQL...');
 
     const connection = await mysql.createConnection({
       host: process.env.HOST,

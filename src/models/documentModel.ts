@@ -17,11 +17,47 @@ export interface Chunk {
 
 export interface Document {
   documentId: string;
-  // documentUrl: string;
+  documentUrl: string;
   chunks: Chunk[];
 }
 
 const index = pc.index(config.pineconeIndexName);
+
+/** 
+ * Interfaces for chunking a pdf document into hierarchal sections 
+ */
+export interface SectionNode {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  page_number: number;
+  page_width: number;
+  page_height: number;
+  text: string;
+  type: string;
+}
+
+export interface Section {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  page_number: number;
+  page_width: number;
+  page_height: number;
+  id: string;
+  section_title: string;
+  content: (Section | SectionNode)[];
+  type: string;
+}
+
+export interface Hierarchy {
+  title: string | null;
+  sections: Section[];
+  danglingContent: SectionNode[]; // New property to store content without sections
+}
+
 
 /**
  * Represents a model for managing documents in a namespace.

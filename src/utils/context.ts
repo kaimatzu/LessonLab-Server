@@ -11,6 +11,9 @@ export const getContext = async (
   getOnlyText = true
 ): Promise<string | ScoredPineconeRecord[]> => {
   try {
+    console.log("Subject: ", message);
+    console.log("Workspace: ", namespace);
+    
     // Wrap the message in an array before passing it to embedChunks
     const embeddings = await embedChunks([message]);
 

@@ -20,6 +20,7 @@ import { ChatCompletionMessageParam } from 'openai/resources';
 import { copy } from '@vercel/blob';
 import { serializeTuple } from './socketServer';
 import moduleController from './controllers/moduleController';
+import { getContext } from './utils/context';
 
 enum MessageType {
   Standard = "standard",
@@ -28,7 +29,6 @@ enum MessageType {
 
 class AISocketHandler {
   public openai: OpenAI;
-
 
   constructor(
     public client: Client,
@@ -388,15 +388,39 @@ class AISocketHandler {
 
       const intentDecompositionCompletion = await intentDecomposition(this.openai, message);
 
-      // const assistantMessageId = uuid();
-      // client.emit('new-assistant-message', assistantMessageId, workspaceId);
-      
-      // TODO: Emit a status event here later
-
       switch(intentDecompositionCompletion.parsed?.intent_type) {
         case IntentTypeEnum.Values.query:
           console.log("query pipeline");
-          // this.processNewMessage(client, workspaceId, chatHistory, userTokens);
+          let context;
+          try {
+            context = await getContext(intentDecompositionCompletion.parsed.subject, workspaceId);
+          } catch (error) {
+            console.error("Error getting context:", error);
+          }
+      
+          const systemPrompt = 
+          `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied, inform the user by saying something along the lines of: "The system did not find the relevant information..." but try to answer as accurately as possible. Otherwise if there is relevant context information available, just answer normally based on the available information.
+
+          subject: ${intentDecompositionCompletion.parsed.subject}
+          context_instructions: ${intentDecompositionCompletion.parsed.context_instructions}
+
+          CONTEXT INFORMATION:
+          ---
+          ${context}
+          ---
+          `;
+                    
+          const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
+
+          try {
+            await this.processNewMessage(
+              systemPromptParam,
+              workspaceId, 
+              chatHistory, 
+              userTokens);
+          } catch(error){
+            console.error("Error generating query response:", error);
+          }
           break;
         case IntentTypeEnum.Values.command:
           console.log("command pipeline");
@@ -421,34 +445,45 @@ class AISocketHandler {
         case IntentTypeEnum.Values.conversational:
           console.log("conversational pipeline");
           const conversationalSystemPrompt = [{ role: 'system', content: "The user has given a simple greeting/started a conversation. Give a polite response." }] as ChatCompletionMessageParam[];
-          // this.processNewMessage(client, conversationalSystemPrompt, workspaceId, chatHistory, userTokens);
+          try {
+            await this.processNewMessage(conversationalSystemPrompt, workspaceId, chatHistory, userTokens);
+          } catch(error){
+            console.error("Error generating query response:", error);
+          }
           break;
         default:
           console.log("misc pipeline");
-          const miscSystemPrompt = [{ role: 'system', content: "The user has given a nonsensical/incoherent/out-of-context query  as input. Please kindly ask what their intention was politely, or guide them." }] as ChatCompletionMessageParam[];
-          // this.processNewMessage(client, miscSystemPrompt, workspaceId, chatHistory, userTokens);
+          const miscSystemPrompt = [{ role: 'system', content: "The user has given a nonsensical/incoherent/out-of-context query as input. Please kindly ask what their intention was politely, or guide them." }] as ChatCompletionMessageParam[];
+          try {
+            await this.processNewMessage(miscSystemPrompt, workspaceId, chatHistory, userTokens);
+          } catch(error){
+            console.error("Error generating query response:", error);
+          }
           break;
       }
     }
   }
 
-  private async processNewMessage(client: Client, systemPrompt: ChatCompletionMessageParam[], workspaceId: string, chatHistory: Message[], userTokens: number): Promise<void> {
-    const { id, data } = client;
+  private async processNewMessage(systemPromptParam: ChatCompletionMessageParam[], workspaceId: string, chatHistory: Message[], userTokens: number): Promise<void> {
+    const assistantMessageId = uuid();
 
-    client.data.currentChatStream = this.openai.beta.chat.completions.stream({
-      ...client.data.chat,
-      messages: [...systemPrompt, ...chatHistory],
+    const tupleKey: WorkspaceMessageKey = [assistantMessageId, workspaceId];
+    const serializedKey = serializeTuple(tupleKey);
+
+    this.workspaceMessagesBufferProxy.emit(serializedKey, 'initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId);
+
+    const stream = this.openai.beta.chat.completions.stream({
+      model: "gpt-4o-mini",
+      messages: [...systemPromptParam, ...chatHistory],
     });
 
-    const assistantMessageId = uuid();
-    client.emit('initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId);
-
     const streamHandlers = {
-      content: (contentDelta, contentSnapshot) =>
-        client.emit('content', contentDelta, contentSnapshot, assistantMessageId, workspaceId),
+      content: (contentDelta, contentSnapshot) => {
+        this.workspaceMessagesBufferProxy.set(serializedKey, [contentDelta, JSON.stringify(contentSnapshot)]);
+      },
       finalContent: (contentSnapshot) =>
-        client.emit('finalContent', contentSnapshot, workspaceId),
-      chunk: (chunk, snapshot) => client.emit('chunk', chunk, snapshot, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalContent', contentSnapshot, workspaceId),
+      chunk: (chunk, snapshot) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'chunk', chunk, snapshot, workspaceId),
       chatCompletion: async (completion) => {
         const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
         const usage = {
@@ -460,7 +495,7 @@ class AISocketHandler {
           ...completion,
           usage: usage
         };
-        client.emit('chatCompletion', completionWithUsage, workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'chatCompletion', completionWithUsage, workspaceId);
       },
       finalChatCompletion: async (completion) => {
         const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
@@ -473,42 +508,36 @@ class AISocketHandler {
           ...completion,
           usage: usage
         };
-        client.emit('finalChatCompletion', completionWithUsage, workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalChatCompletion', completionWithUsage, workspaceId);
       },
-      message: (message) => client.emit('message', message, workspaceId),
+      message: (message) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'message', message, workspaceId),
       finalMessage: async (message) => {
-        client.emit('finalMessage', message, workspaceId);
-        try {
-          await assistantController.insertChatHistory(
-            message,
-            uuid(),
-            MessageType.Standard,
-            workspaceId
-          );
-        } catch (error) {
-          console.error('Error inserting chat history:', error);
-        }
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalMessage', message, workspaceId);
+        assistantController.insertChatHistory(
+          message,
+          assistantMessageId,
+          MessageType.Standard,
+          workspaceId
+        );
       },
-      functionCall: (functionCall) => client.emit('functionCall', functionCall, workspaceId),
+      functionCall: (functionCall) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'functionCall', functionCall, workspaceId),
       finalFunctionCall: (finalFunctionCall) =>
-        client.emit('finalFunctionCall', finalFunctionCall, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCall', finalFunctionCall, workspaceId),
       functionCallResult: (finalFunctionCallResult) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
       finalFunctionCallResult: (finalFunctionCallResult, workspaceId) =>
-        client.emit('finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
       error: (error) => {
-        client.emit('error', error, workspaceId);
-        client.data.currentChatStream = undefined;
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'error', error, workspaceId);
       },
       end: () => {
-        client.emit('end', workspaceId);
-        client.emit('debug-log', JSON.stringify({ workspaceId: workspaceId, chatHistory: chatHistory }))
-        client.data.currentChatStream = undefined;
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'end', workspaceId);
+        this.workspaceMessagesBufferProxy.emit(serializedKey, 'debug-log', JSON.stringify({ debug: "Intermediate response ended." }))
       },
     } as ChatCompletionEvents;
 
     Object.entries(streamHandlers).forEach(([event, handler]) => {
-      client.data.currentChatStream?.on(
+      stream.on(
         event as keyof typeof streamHandlers,
         async (...args: any) => {
           await handler(...args);
@@ -528,11 +557,11 @@ class AISocketHandler {
     let finalIntermediateResponse: string = '';
 
     const systemPrompt = 
-`You are an AI agent that's part of a user input processing pipeline who's main task is to give short, intermediate responses to the user depending on the [subject] and the [context_instructions] if applicable. Give your responses as if you are reassuring the user that their request is being processed.
+    `You are an AI agent that's part of a user input processing pipeline who's main task is to give short, intermediate responses to the user depending on the [subject] and the [context_instructions] if applicable. Give your responses as if you are reassuring the user that their request is being processed.
 
-pipelineStatus: ${piplineStatus}
-subject: ${subject}
-context_instructions: ${context_instructions}`;
+    pipelineStatus: ${piplineStatus}
+    subject: ${subject}
+    context_instructions: ${context_instructions}`;
 
     const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
 
@@ -680,18 +709,18 @@ context_instructions: ${context_instructions}`;
     let finalIntermediateResponse: string = '';
 
     const systemPrompt = 
-`You are an AI agent that's part of a user input processing pipeline who's main task is to generate content for a module.
+    `You are an AI agent that's part of a user input processing pipeline who's main task is to generate content for a module.
 
-Here is the metadata for the module:
+    Here is the metadata for the module:
 
-Subject: ${subject}
-Module Title: ${title}
-Description: ${description}
+    Subject: ${subject}
+    Module Title: ${title}
+    Description: ${description}
 
-Consider the following context instructions inferred by the previous processes within the pipeline:
+    Consider the following context instructions inferred by the previous processes within the pipeline:
 
-Context Instructions: ${context_instructions}
-`;
+    Context Instructions: ${context_instructions}
+    `;
 
     const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
 
