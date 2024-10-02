@@ -17,3 +17,13 @@ export interface StorageService {
     documentId: string
   ): Promise<void>;
 }
+
+import { ServerStorage } from "./serverStorage";
+import { SpacesStorage } from "./spacesStorage";
+
+const useSpaces =
+  process.env.DO_SPACES_ACCESS_KEY_ID &&
+  process.env.DO_SPACES_SECRET_ACCESS_KEY;
+export const storageService: StorageService = useSpaces
+  ? new SpacesStorage()
+  : new ServerStorage();

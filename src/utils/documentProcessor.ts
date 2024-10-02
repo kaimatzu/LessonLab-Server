@@ -66,11 +66,12 @@ async function processFile(
  * Chunks the content into smaller pieces and embeds them using the embedChunks function.
  * @param documentId - The ID of the document.
  * @param documentContent - The content of the document to chunk and embed.
+ * @param documentUrl - The url of the document.
  * @returns A promise that resolves to an object containing the processed document.
  * @throws If there is an error in chunking and embedding the document.
  */
 async function chunkAndEmbedFile(
-  documentId: string, documentContent: string,
+  documentId: string, documentContent: string, documentUrl: string
 ): Promise<{ document: Document }> {
   try {  
     // Convert LONGBLOB document data to string.
@@ -80,10 +81,11 @@ async function chunkAndEmbedFile(
 
     const document: Document = {
       documentId,
+      documentUrl,
       chunks: [],
     };
     
-    // console.log("content -> ", content);
+    console.log("content -> ", content);
     // Pick a chunking strategy (this will depend on the use case and the desired chunk size!)
     const chunks = chunkTextByMultiParagraphs(content);
 

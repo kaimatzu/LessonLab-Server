@@ -83,6 +83,7 @@ class SocketServer {
           const socket = io.in(workspaceId); 
           if (socket) {
             socket.emit('content', content[0], content[1], assistantMessageId, workspaceId);
+            // console.log(content)
           }
 
           return result;
