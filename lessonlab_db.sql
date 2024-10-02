@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 05, 2024 at 10:27 AM
+-- Generation Time: Oct 02, 2024 at 09:56 PM
 -- Server version: 8.0.39-0ubuntu0.22.04.1
 -- PHP Version: 8.2.4
 
@@ -20,6 +20,9 @@ SET time_zone = "+00:00";
 --
 -- Database: `lessonlab_db`
 --
+DROP DATABASE IF EXISTS `lessonlab_db`;
+CREATE DATABASE IF NOT EXISTS `lessonlab_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE `lessonlab_db`;
 
 -- --------------------------------------------------------
 
@@ -94,7 +97,7 @@ CREATE TABLE `Documents` (
   `DocumentID` char(36) NOT NULL,
   `DocumentName` varchar(255) DEFAULT NULL,
   `DocumentData` longblob,
-  `MaterialID` char(36) DEFAULT NULL,
+  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `DocumentType` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -304,7 +307,7 @@ ALTER TABLE `ClassStudents`
 --
 ALTER TABLE `Documents`
   ADD PRIMARY KEY (`DocumentID`),
-  ADD KEY `Documents_ibfk_1` (`MaterialID`);
+  ADD KEY `Documents_ibfk_1` (`WorkspaceID`);
 
 --
 -- Indexes for table `Lessons`
@@ -432,7 +435,7 @@ ALTER TABLE `ClassStudents`
 -- Constraints for table `Documents`
 --
 ALTER TABLE `Documents`
-  ADD CONSTRAINT `Documents_ibfk_1` FOREIGN KEY (`MaterialID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `Documents_ibfk_1` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `Lessons`
