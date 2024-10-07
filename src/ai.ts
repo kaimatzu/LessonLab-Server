@@ -21,6 +21,8 @@ import { copy } from '@vercel/blob';
 import { serializeTuple } from './socketServer';
 import moduleController from './controllers/moduleController';
 import { getContext } from './utils/context';
+import { chunkAndEmbedFile } from './utils/documentProcessor';
+import documentController from "./controllers/documentController";
 
 enum MessageType {
   Standard = "standard",
@@ -709,7 +711,7 @@ class AISocketHandler {
     let finalIntermediateResponse: string = '';
 
     const systemPrompt = 
-    `You are an AI agent that's part of a user input processing pipeline who's main task is to generate content for a module.
+    `You are an AI agent that's part of a user input processing pipeline who's main task is to generate content for a module. Focus on creating the actual content of the module node, not the outline, not the overview. Just focus on creating the content. That's all. Make sure it is well structured. Do not output the metadata as it is already displayed in another component.
 
     Here is the metadata for the module:
 
@@ -739,9 +741,12 @@ class AISocketHandler {
         moduleController.updateModuleNodeContentCallback(moduleNodeId, contentSnapshot);
       },
       chunk: (chunk, snapshot) => {
+        // console.log("Generated chunk delta: ", chunk.choices[0].delta);
+        // console.log("Generated chunk snapshot: ", snapshot.choices[0].message);
         // this.workspaceModulesBufferProxy.emit(serializedKey, 'chunk', chunk, snapshot, workspaceId)
       },
       chatCompletion: async (completion) => {
+        console.log("Completion: ", completion.choices[0].message);
         // const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
         // const usage = {
         //   prompt_tokens: userTokens,
@@ -755,6 +760,21 @@ class AISocketHandler {
         // client.emit('chatCompletion', completionWithUsage, workspaceId);
       },
       finalChatCompletion: async (completion) => {
+        console.log("Final chat completion: ", completion.choices[0].message);
+        try {
+          const { document } = await chunkAndEmbedFile(
+            uuid(),
+            completion.choices[0].message.content!,
+            '',
+          ); 
+          console.log("Upserting new pinecone embedding document...");
+          documentController.safeUpsertDocument(
+            document,
+            workspaceId
+          )
+        } catch (error) {
+          console.error("Unable to embed module node: ", error);
+        }
         // const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
         // const usage = {
         //   prompt_tokens: userTokens,
