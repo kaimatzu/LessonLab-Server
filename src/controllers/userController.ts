@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid'; 
+import { v4 as uuidv4 } from 'uuid';
 import { getDbConnection } from "../utils/storage/database";
 import { checkPassword, createJwtToken, generateHash } from "../utils/auth";
 import jwt from 'jsonwebtoken';
@@ -21,43 +21,43 @@ class UsersController {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const { username, password, userType, name, email } = req.body;
     const userId = uuidv4(); // Generate a UUID for the UserID
-  
+
     try {
       const connection = await getDbConnection();
       const [rows]: any = await connection.execute("SELECT `UserID` FROM `Users` WHERE `Username`=? OR `Email`=?", [username, email]);
-  
+
       if (rows.length > 0) {
         await connection.end();
-        return res.status(400).json({ message: 'User already exists' });
+        return res.status(400).json({ message: 'This email is already in use. Please use another one.' });
       }
-  
+
       const hashedPassword = generateHash(password);
-  
+
       await connection.execute(
         'INSERT INTO Users (UserID, UserType, Name, Username, Password, Email) VALUES (?, ?, ?, ?, ?, ?)',
         [userId, userType, name, username, hashedPassword, email]
       );
-  
-      const token = createJwtToken(userId, username, userType, name, email, TOKEN_MAX_AGE); 
-  
+
+      const token = createJwtToken(userId, username, userType, name, email, TOKEN_MAX_AGE);
+
       await connection.end();
-  
+
       res.cookie('authToken', token, {
         httpOnly: true,
-        secure: true, 
+        secure: true,
         sameSite: 'strict',
         maxAge: TOKEN_MAX_AGE
       });
-      
+
       res.cookie('autoLoginToken', true, {
         secure: true,
         sameSite: 'strict',
         maxAge: TOKEN_MAX_AGE
       });
-      
+
       return res.status(201).json({
         user: {
           UserID: userId,
@@ -76,43 +76,43 @@ class UsersController {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const { identifier, password } = req.body; // Accept either username or email as "identifier"
     const isEmail = /\S+@\S+\.\S+/.test(identifier); // Check if the identifier is an email
-  
+
     try {
       const connection = await getDbConnection();
       const query = isEmail
         ? 'SELECT * FROM Users WHERE Email = ?'
         : 'SELECT * FROM Users WHERE Username = ?';
-  
+
       const [rows]: any = await connection.execute(query, [identifier]);
-  
+
       if (rows.length === 0) {
         await connection.end();
         return res.status(401).json({ message: 'User not found' });
       }
-  
+
       const user = rows[0];
       const isPasswordValid = checkPassword(user.Password, password);
-  
+
       if (!isPasswordValid) {
         await connection.end();
         return res.status(401).json({ message: 'Incorrect password' });
       }
-  
+
       const token = createJwtToken(user.UserID, user.Username, user.UserType, user.Name, user.Email, TOKEN_MAX_AGE);
-  
+
       await connection.end();
-  
+
       // Return user data excluding sensitive information
       res.cookie('authToken', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict', 
+        sameSite: 'strict',
         maxAge: TOKEN_MAX_AGE
       });
-      
+
       res.cookie('autoLoginToken', true, {
         secure: true,
         sameSite: 'strict',
