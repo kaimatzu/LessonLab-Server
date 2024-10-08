@@ -61,7 +61,8 @@ class SocketServer {
       if (prop === 'emit') {
         return (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
           const [assistantMessageId, workspaceId] = deserializeTuple(serializedKey);
-
+          
+          console.log("Emitting event: ", event)
           const socket = io.in(workspaceId); // Get the socket room by workspaceId
           if (socket) {
             socket.emit(event, ...args); // Emit the event with all provided arguments

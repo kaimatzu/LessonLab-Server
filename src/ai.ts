@@ -46,8 +46,8 @@ class AISocketHandler {
     public workspaceModulesBufferProxy: WorkspaceModulesProxy,
   ) {
     this.openai = new OpenAI(this.options.client);
-    client.data.chat = this.options.chat;
-    client.data.initMessages = this.options.initMessages;
+    // client.data.chat = this.options.chat;
+    // client.data.initMessages = this.options.initMessages;
 
     
     // Standard user-assistant message events handling
@@ -396,10 +396,30 @@ class AISocketHandler {
           let context;
           try {
             context = await getContext(intentDecompositionCompletion.parsed.subject, workspaceId);
+            
+            if (context?.length === 0) {
+              const assistantMessageId = uuid();
+              client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId);
+    
+              const notificationDirective = `::rag_empty_context_notification{notificationMessage="No relevant information found about topic within the workspace. Assistant response information may be inaccurate. Try adding files to the workspace that contains relevant information."}`;
+              client.emit('content', notificationDirective, notificationDirective as any, assistantMessageId, workspaceId);
+              
+              client.emit('end', workspaceId);
+    
+              assistantController.insertChatHistory(
+                {
+                  role: 'assistant',
+                  content: notificationDirective,
+                },
+                assistantMessageId,
+                MessageType.Action,
+                workspaceId
+              );
+            } 
           } catch (error) {
             console.error("Error getting context:", error);
           }
-      
+          
           const systemPrompt = 
           `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied (i.e. the context information block is empty), inform the user by saying something along the lines of: "The system did not find the relevant information..." but try to answer as accurately as possible. Otherwise if there is relevant context information available, just answer normally based on the available information.
 
@@ -429,7 +449,7 @@ class AISocketHandler {
           
           const commandTypeCompletion = await commandDecomposition(this.openai, intentDecompositionCompletion.parsed?.context_instructions);
           console.log("Command type:", commandTypeCompletion.parsed?.command_type);
-          this.commandPipelineProcessing(
+          await this.commandPipelineProcessing(
             client, 
             commandTypeCompletion.parsed?.command_type,
             intentDecompositionCompletion.parsed.subject,
@@ -467,6 +487,9 @@ class AISocketHandler {
   }
 
   private async processNewMessage(systemPromptParam: ChatCompletionMessageParam[], workspaceId: string, chatHistory: Message[], userTokens: number): Promise<void> {
+    console.log("Processing new message for: ", workspaceId);
+    console.log("System prompt: \n", systemPromptParam[0].content);
+
     const assistantMessageId = uuid();
 
     const tupleKey: WorkspaceMessageKey = [assistantMessageId, workspaceId];
