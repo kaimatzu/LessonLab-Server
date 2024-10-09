@@ -38,8 +38,8 @@ export interface EventsMap {
   'send-data'(roomId: string): void;
   // Chat events handling
   'new-message'(message: string | Message, userId: string, workspaceId: string, chatHistory: Message[]): void;
-  'initialize-user-message'(id: string, content: string, type: MessageType, workspaceId: string): void;
-  'initialize-assistant-message'(id: string, type: MessageType, workspaceId: string): void;
+  'initialize-user-message'(id: string, content: string, type: MessageType, workspaceId: string, async callback: ({ ack: string }) => void): void;
+  'initialize-assistant-message'(id: string, type: MessageType, workspaceId: string, async callbackAssistant: ({ ack: string }) => void): void;
   'set-options'(options: Omit<ClientOptions, 'currentChatStream'>): void;
   'debug-log'(message: string): void;
   abort: () => void;

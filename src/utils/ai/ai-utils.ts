@@ -5,6 +5,27 @@ import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { ParsedChatCompletionMessage } from 'openai/resources/beta/chat/completions';
 import { uuid } from "uuidv4";
+import moduleController from '../../controllers/moduleController';
+
+import { serializeTuple } from '../../socketServer';
+
+import { ChatCompletionMessageParam } from 'openai/resources';
+import documentController from '../../controllers/documentController';
+import { chunkAndEmbedFile } from '../documentProcessor';
+
+import {
+  Client,
+  ChatCompletionEvents,
+  Options,
+  Message,
+  WorkspaceMessagesBuffer,
+  WorkspaceMessageKey,
+  WorkspaceMessagesProxy,
+  WorkspaceModulesProxy,
+  Module,
+  ModuleNode,
+  WorkspaceModuleKey,
+} from '../../types/globals';
 
 //////////////////////////////////////
 /// AI Response format definitions ///
@@ -184,6 +205,299 @@ Information on command types:
     throw new Error(`Command decomposition error: ${error}`);
   }
 }
+
+export async function insertModuleNode(moduleId: string, nodes: ModuleNodeOutline, ancestor: string) {
+  await moduleController.insertChildToModuleNodeCallback(ancestor, moduleId, nodes.id!, '', nodes.title);
+  if (!nodes.children || nodes.children?.length === 0) return;
+
+  await Promise.all(
+    nodes.children.map(async (childNode: ModuleNodeOutline) => {
+      await insertModuleNode(moduleId, childNode, nodes.id!);
+    })
+  );
+}
+
+//////////////////////////////////////
+//////      Module Creation     //////
+//////////////////////////////////////
+
+export async function createModule(client: Client, moduleId: string, workspaceId: string, module: Module, subject: string, context_instructions: string, workspaceModulesBufferProxy: WorkspaceModulesProxy, openai: OpenAI) {
+  client.emit('create-module', moduleId!, workspaceId, module.name, module.description, async (ack: string) => {
+    if (ack === 'module-created') {
+      // Proceed with the accepted module outline 
+      console.log("Module outline data", module);
+
+      const serializedKey = serializeTuple([moduleId, workspaceId]);
+      
+      const moduleBuffer: Module = {
+        id: moduleId,
+        name: module.name,
+        description: module.description,
+        nodes: module.nodes
+      }
+
+      workspaceModulesBufferProxy.set(serializedKey, moduleBuffer);
+
+      let i = 0;
+      for (const node of module.nodes) {
+        const traverseModuleNodes = async (
+          moduleId: string,
+          workspaceId: string,
+          node: ModuleNodeOutline
+        ) => {
+          // Call generateModuleNodeContent for the current node sequentially
+          if (node.id) {
+            await generateModuleNodeContent(
+              moduleId,
+              node.id,
+              workspaceId,
+              node.title,
+              node.description,
+              subject,
+              context_instructions,
+              workspaceModulesBufferProxy,
+              openai,
+            );
+          }
+          
+          console.log("Iteration", i++);
+
+          // If this node has children, recursively call traverseModuleNodes for each child
+          if (node.children && node.children.length > 0) {
+            for (const childNode of node.children) {
+              await traverseModuleNodes(moduleId, workspaceId, childNode);
+            }
+          }
+        };
+      
+        // Traverse each module node sequentially
+        await traverseModuleNodes(moduleId, workspaceId, node);
+      }
+      
+      workspaceModulesBufferProxy.emit(serializedKey, 'end');
+    }
+  })
+}
+
+export async function createModuleFromOutline(client: Client, moduleOutlineData: ModuleOutline, result: any, workspaceId: string, rootNode: string, subject: string, context_instructions: string, workspaceModulesBufferProxy: WorkspaceModulesProxy, openai: OpenAI) {
+  client.emit('create-module', rootNode!, workspaceId, moduleOutlineData.name, moduleOutlineData.description, async (ack) => {
+    if (ack === 'module-created') {
+      console.log("Result", result);
+
+      const serializedKey = serializeTuple([result.moduleId!, workspaceId]);
+      console.log("Serialized key:", serializedKey);
+
+      if (result.moduleId) {
+        console.log("Creating module data");
+        const serializedKey = serializeTuple([result.moduleId, workspaceId]);
+
+        const moduleNodes: ModuleNode[] = moduleOutlineData.moduleNodes.map((moduleNodeOutline) => {
+          const mapModuleNodeOutlineToModuleNode = (nodeOutline: ModuleNodeOutline, parentId: string): ModuleNode => {
+            return {
+              id: nodeOutline.id!,
+              parent: parentId,
+              title: nodeOutline.title,
+              content: '', 
+              description: nodeOutline.description,
+              children: nodeOutline.children
+                ? nodeOutline.children.map((childNode) => mapModuleNodeOutlineToModuleNode(childNode, nodeOutline.id!))
+                : [], // Recursively map children, if any
+            };
+          };
+        
+          return mapModuleNodeOutlineToModuleNode(moduleNodeOutline, moduleOutlineData.id!); // Root-level parent id is moduleOutlineData.id
+        });
+        
+        console.log("Module nodes:", JSON.stringify(moduleNodes, null, 2));
+
+        const moduleBuffer: Module = {
+          id: rootNode!,
+          name: moduleOutlineData.name,
+          description: moduleOutlineData.description,
+          nodes: moduleNodes
+        }
+
+        workspaceModulesBufferProxy.set(serializedKey, moduleBuffer);
+
+        let i = 0;
+        for (const node of moduleNodes) {
+          const traverseModuleNodes = async (
+            moduleId: string,
+            workspaceId: string,
+            node: ModuleNodeOutline
+          ) => {
+            // Call generateModuleNodeContent for the current node sequentially
+            if (node.id) {
+              await generateModuleNodeContent(
+                moduleId,
+                node.id,
+                workspaceId,
+                node.title,
+                node.description,
+                subject,
+                context_instructions,
+                workspaceModulesBufferProxy,
+                openai,
+              );
+            }
+        
+            // workspaceModulesBufferProxy.emit(serializedKey, 'update-module-node', moduleId, node.id, workspaceId, node.description, node.description);
+            
+            console.log("Iteration", i++);
+
+            // If this node has children, recursively call traverseModuleNodes for each child
+            if (node.children && node.children.length > 0) {
+              for (const childNode of node.children) {
+                await traverseModuleNodes(moduleId, workspaceId, childNode);
+              }
+            }
+          };
+        
+          // Traverse each module node sequentially
+          await traverseModuleNodes(rootNode!, workspaceId, node);
+        }
+        
+        workspaceModulesBufferProxy.emit(serializedKey, 'end');
+      }
+    }
+  });
+}
+
+export async function generateModuleNodeContent(moduleId: string, moduleNodeId: string, workspaceId: string, title: string, description: string, subject: string, context_instructions: string, workspaceModulesBufferProxy: WorkspaceModulesProxy, openai: OpenAI) {
+  const tupleKey: WorkspaceModuleKey = [moduleId, workspaceId];
+  const serializedKey = serializeTuple(tupleKey);
+
+  let finalIntermediateResponse: string = '';
+
+  const systemPrompt = 
+  `You are an AI agent that's part of a user input processing pipeline who's main task is to generate content for a module. Focus on creating the actual content of the module node, not the outline, not the overview. Just focus on creating the content. That's all. Make sure it is well structured. Do not output the metadata as it is already displayed in another component.
+
+  Here is the metadata for the module:
+
+  Subject: ${subject}
+  Module Title: ${title}
+  Description: ${description}
+
+  Consider the following context instructions inferred by the previous processes within the pipeline:
+
+  Context Instructions: ${context_instructions}
+  `;
+
+  const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
+
+  const stream = openai.beta.chat.completions.stream({
+    model: "gpt-4o-mini",
+    messages: [...systemPromptParam],
+  });
+
+  const streamHandlers = {
+    content: (contentDelta, contentSnapshot) => {
+      const trimmedContentSnapshot = JSON.stringify(contentSnapshot).slice(1, -1);
+      workspaceModulesBufferProxy.emit(serializedKey, 'update-module-node', moduleId, moduleNodeId, workspaceId, contentDelta, trimmedContentSnapshot);
+    },
+    finalContent: async (contentSnapshot) => {
+      workspaceModulesBufferProxy.emit(serializedKey, 'finalContent', contentSnapshot, workspaceId);
+      moduleController.updateModuleNodeContentCallback(moduleNodeId, contentSnapshot);
+    },
+    chunk: (chunk, snapshot) => {
+      // console.log("Generated chunk delta: ", chunk.choices[0].delta);
+      // console.log("Generated chunk snapshot: ", snapshot.choices[0].message);
+      // this.workspaceModulesBufferProxy.emit(serializedKey, 'chunk', chunk, snapshot, workspaceId)
+    },
+    chatCompletion: async (completion) => {
+      console.log("Completion: ", completion.choices[0].message);
+      // const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
+      // const usage = {
+      //   prompt_tokens: userTokens,
+      //   completion_tokens: assistantTokens,
+      //   total_tokens: userTokens + assistantTokens,
+      // };
+      // const completionWithUsage = {
+      //   ...completion,
+      //   usage: usage
+      // };
+      // client.emit('chatCompletion', completionWithUsage, workspaceId);
+    },
+    finalChatCompletion: async (completion) => {
+      console.log("Final chat completion: ", completion.choices[0].message);
+      try {
+        const { document } = await chunkAndEmbedFile(
+          uuid(),
+          completion.choices[0].message.content!,
+          '',
+        ); 
+        console.log("Upserting new pinecone embedding document...");
+        documentController.safeUpsertDocument(
+          document,
+          workspaceId
+        )
+      } catch (error) {
+        console.error("Unable to embed module node: ", error);
+      }
+      // const assistantTokens = await calculateTokens4o_mini(completion.choices[0].message.content);
+      // const usage = {
+      //   prompt_tokens: userTokens,
+      //   completion_tokens: assistantTokens,
+      //   total_tokens: userTokens + assistantTokens,
+      // };
+      // const completionWithUsage = {
+      //   ...completion,
+      //   usage: usage
+      // };
+      // client.emit('finalChatCompletion', completionWithUsage, workspaceId);
+    },
+    message: (message) => workspaceModulesBufferProxy.emit(serializedKey, 'message', message, workspaceId),
+    finalMessage: async (message) => {
+      // this.workspaceModulesBufferProxy.emit(serializedKey, 'finalMessage', message, workspaceId);
+      // finalIntermediateResponse = message.content as string;
+      // try {
+      //   await assistantController.insertChatHistory(
+      //     message,
+      //     uuid(),
+      //     workspaceId
+      //   );
+      // } catch (error) {
+      //   console.error('Error inserting chat history:', error);
+      // }
+    },
+    functionCall: (functionCall) => workspaceModulesBufferProxy.emit(serializedKey, 'functionCall', functionCall, workspaceId),
+    finalFunctionCall: (finalFunctionCall) =>
+      workspaceModulesBufferProxy.emit(serializedKey, 'finalFunctionCall', finalFunctionCall, workspaceId),
+    functionCallResult: (finalFunctionCallResult) =>
+      workspaceModulesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+    finalFunctionCallResult: (finalFunctionCallResult, workspaceId) =>
+      workspaceModulesBufferProxy.emit(serializedKey, 'finalFunctionCallResult', finalFunctionCallResult, workspaceId),
+    error: (error) => {
+      workspaceModulesBufferProxy.emit(serializedKey, 'error', error, workspaceId);
+    },
+    end: () => {
+      // this.workspaceMessagesBufferProxy.emit(serializedKey, 'end');
+    },
+  } as ChatCompletionEvents;
+
+  Object.entries(streamHandlers).forEach(([event, handler]) => {
+    stream.on(
+      event as keyof typeof streamHandlers,
+      async (...args: any) => {
+        // this.logger(
+        //   `Event: ${event}, Args: ${JSON.stringify(args, null, 2)}`,
+        // );
+        await handler(...args);
+      },
+    );
+  });
+
+  // Wait until the stream is finished before returning the final response
+  return new Promise<string>((resolve, reject) => {
+    stream.on('end', () => {
+      resolve(finalIntermediateResponse);
+    });
+    stream.on('error', (error: any) => {
+      reject(error);
+    });
+  });
+}
+
 
 //////////////////////////////////////
 ///// Command Processing Pipeline ////

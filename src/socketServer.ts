@@ -62,13 +62,16 @@ class SocketServer {
         return (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
           const [assistantMessageId, workspaceId] = deserializeTuple(serializedKey);
           
-          console.log("Emitting event: ", event)
-          const socket = io.in(workspaceId); // Get the socket room by workspaceId
-          if (socket) {
-            socket.emit(event, ...args); // Emit the event with all provided arguments
-          }
-          if (event === 'end') {
-            target.delete(workspaceId); // Delete the entry from the map on 'end' event
+          if (event === 'initialize-assistant-message') {
+            console.log("Emitting event: ", event, ...args)
+          } else { // Hacky bandaid fix for weird callback behavior via proxy. Do not modify until socket.io is patched. 
+            const socket = io.in(workspaceId); // Get the socket room by workspaceId
+            if (socket) {
+              socket.emit(event, ...args); // Emit the event with all provided arguments
+            }
+            if (event === 'end') {
+              target.delete(workspaceId); // Delete the entry from the map on 'end' event
+            }
           }
         };
       }
