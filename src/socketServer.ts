@@ -63,10 +63,11 @@ class SocketServer {
           const [assistantMessageId, workspaceId] = deserializeTuple(serializedKey);
           
           if (event === 'initialize-assistant-message') {
-            console.log("Emitting event: ", event, ...args)
+            console.log("Emitting event: ", event, ...args);
           } else { // Hacky bandaid fix for weird callback behavior via proxy. Do not modify until socket.io is patched. 
             const socket = io.in(workspaceId); // Get the socket room by workspaceId
             if (socket) {
+              console.log("Emitting event: ", event, ...args);
               socket.emit(event, ...args); // Emit the event with all provided arguments
             }
             if (event === 'end') {
