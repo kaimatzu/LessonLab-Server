@@ -164,11 +164,12 @@ class WorkspaceController {
 
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('UPDATE Workspaces SET WorkspaceName = ? WHERE WorkspaceID = ?', [workspaceName, workspaceId])
+      const result: any = await connection.execute('UPDATE Workspaces SET WorkspaceName = ? WHERE WorkspaceID = ?', [workspaceName, workspaceId]);
+      await connection.end()
+
       const header = result[0]
 
       if (header.changedRows === 0) {
-        await connection.end()
         return res.status(404).json({ message: 'Workspace not found' })
       }
 
@@ -198,13 +199,11 @@ class WorkspaceController {
       if (header.affectedRows === 0)
         return res.status(404).json({ error: 'Workspace not found' })
 
-      res.status(204).send()
+      return res.status(204);
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error ' + error })
     }
-
-    res.status(501).send({ message: 'Not implemented' })
   }
 
   //////////////////////////////////////
