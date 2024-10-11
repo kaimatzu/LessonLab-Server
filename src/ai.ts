@@ -604,6 +604,7 @@ class AISocketHandler {
   }
 
   private async intermediateResponse(client: Client, subject: string, context_instructions: string, piplineStatus: string, workspaceId: string, chatHistory: Message[], userTokens: number): Promise<string | void> {
+    console.log("Generating intermediate response...");
     const assistantMessageId = uuid();
 
     const tupleKey: WorkspaceMessageKey = [assistantMessageId, workspaceId];
@@ -675,6 +676,7 @@ class AISocketHandler {
                   MessageType.Standard,
                   workspaceId
                 );
+                resolve(finalIntermediateResponse);
               } catch(error) {
                 throw error;
               }
@@ -705,9 +707,9 @@ class AISocketHandler {
           });
       
           // Wait until the stream is finished before returning the final response
-          stream.on('end', () => {
-            resolve(finalIntermediateResponse);
-          });
+          // stream.on('end', () => {
+          //   resolve(finalIntermediateResponse);
+          // });
           stream.on('error', (error: any) => {
             reject(error);
           });
@@ -731,8 +733,10 @@ class AISocketHandler {
             userTokens
           );
           console.log("Intermediate reponse:", intermediateResponseMessage);
-  
+          
           if (intermediateResponseMessage) {
+            console.log("Generating assistant message...");
+
             const assistantMessageId = uuid();
             client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId, async ({ ack }) => {
               if (ack === 'success') {
