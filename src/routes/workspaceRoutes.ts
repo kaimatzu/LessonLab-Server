@@ -6,7 +6,7 @@ const router = Router();
 router.post('/create', workspaceController.createWorkspace)
 router.get('/:workspaceId', workspaceController.getWorkspace)
 router.get('', workspaceController.getWorkspaces)
-router.patch('/:workspaceId', workspaceController.updateWorkspace)
+router.patch('/:workspaceId/:workspaceName', workspaceController.updateWorkspace)
 router.delete('/:workspaceId', workspaceController.deleteWorkspace)
 
 // TODO: Refactor this into new file
