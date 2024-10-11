@@ -23,6 +23,7 @@ import moduleController from './controllers/moduleController';
 import { getContext } from './utils/context';
 import { chunkAndEmbedFile } from './utils/documentProcessor';
 import documentController from "./controllers/documentController";
+import { error } from 'console';
 
 enum MessageType {
   Standard = "standard",
@@ -49,7 +50,11 @@ class AISocketHandler {
     
     // Standard user-assistant message events handling
     client.on('new-message', async (message, userId, workspaceId, chatHistory) => {
-      await this.onNewMessage(client, message, workspaceId, userId, chatHistory)
+      try {
+        await this.onNewMessage(client, message, workspaceId, userId, chatHistory)
+      } catch(error) {
+        console.log("Error processing message to assistant: ", error);
+      }
     });
 
     // TODO: Modify this so that all AI assistant operations over a workspace ID is terminated
@@ -62,160 +67,86 @@ class AISocketHandler {
 
     client.on('module-outline-generation', async (confirmation, workspaceId, subject, context_instructions) => {
       if (confirmation) {
-        const userMessageId = uuid();
-        const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Creation Confirmed"}`;
-        client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async ({ ack }) => {
-          if (ack === 'success') {
-
-          }
-        });
-      
-        await assistantController.insertChatHistory(
-          {
-            role: 'user',
-            content: actionNotificationDirective,
-          },
-          userMessageId,
-          MessageType.Action,
-          workspaceId
-        );
-
-        const assistantMessageId = uuid();
-        client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId, async ({ ack }) => {
-          if (ack === 'success') {
-            const moduleId = uuid();
-            const moduleDirective = `:::module_outline{moduleId="${moduleId}" subject="${subject}" context_instructions="${context_instructions}"}\n:::`;
-            client.emit('content', moduleDirective, moduleDirective as any, assistantMessageId, workspaceId);
-    
-            await assistantController.insertChatHistory(
-              {
-                role: 'assistant',
-                content: moduleDirective,
-              },
-              assistantMessageId,
-              MessageType.Action,
-              workspaceId
-            );
-    
-            client.emit('end', workspaceId);
-          }
-        });
-      } else {
-        const userMessageId = uuid();
-        const actionNotificationDirective = `::action_notification{actionMessage="Module Creation Confirmed"}`;
-
-        client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async({ ack }) => {
-          if (ack === 'success') {
-            client.emit('end', workspaceId);
-
-            await assistantController.insertChatHistory(
-              {
-                role: 'user',
-                content: actionNotificationDirective,
-              },
-              userMessageId,
-              MessageType.Action,
-              workspaceId
-            );
-    
-            // Handle direct module outline generation without user confirmation
-            let moduleOutlineData = await generateModuleOutlineResponse(this.openai, subject, context_instructions);
-    
-            const result = await moduleController.createModuleCallback(moduleOutlineData.name, moduleOutlineData.description, workspaceId);
-            const rootNode = result.moduleId;
-    
-            await Promise.all(
-              moduleOutlineData.moduleNodes.map(async (node: ModuleNodeOutline) => {
-                await insertModuleNode(rootNode!, node, rootNode!);
-              })
-            );
+        try {
+          const userMessageId = uuid();
+          const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Creation Confirmed"}`;
+          client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async ({ ack }) => {
+            if (ack === 'success') {
+                await assistantController.insertChatHistory(
+                  {
+                    role: 'user',
+                    content: actionNotificationDirective,
+                  },
+                  userMessageId,
+                  MessageType.Action,
+                  workspaceId
+                );
+        
+                const assistantMessageId = uuid();
+                client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId, async ({ ack }) => {
+                  if (ack === 'success') {
+                    const moduleId = uuid();
+                    const moduleDirective = `:::module_outline{moduleId="${moduleId}" subject="${subject}" context_instructions="${context_instructions}"}\n:::`;
+                    client.emit('content', moduleDirective, moduleDirective as any, assistantMessageId, workspaceId);
             
-            console.log("Module nodes of prev:", JSON.stringify(moduleOutlineData.moduleNodes, null, 2));
-    
-            await createModuleFromOutline(client, moduleOutlineData, result, workspaceId, rootNode!, subject, context_instructions, workspaceModulesBufferProxy, this.openai);
-
-          }
-        });
-      //   client.emit('create-module', rootNode!, workspaceId, moduleOutlineData.name, moduleOutlineData.description, async (ack) => {
-      //     if (ack === 'module-created') {
-      //       console.log("Result", result);
-    
-      //       const serializedKey = serializeTuple([result.moduleId!, workspaceId]);
-      //       console.log("Serialized key:", serializedKey);
-    
-      //       if (result.moduleId) {
-      //         console.log("Creating module data");
-      //         const serializedKey = serializeTuple([result.moduleId, workspaceId]);
-      
-      //         const moduleNodes: ModuleNode[] = moduleOutlineData.moduleNodes.map((moduleNodeOutline) => {
-      //           const mapModuleNodeOutlineToModuleNode = (nodeOutline: ModuleNodeOutline, parentId: string): ModuleNode => {
-      //             return {
-      //               id: nodeOutline.id!,
-      //               parent: parentId,
-      //               title: nodeOutline.title,
-      //               content: '', 
-      //               description: nodeOutline.description,
-      //               children: nodeOutline.children
-      //                 ? nodeOutline.children.map((childNode) => mapModuleNodeOutlineToModuleNode(childNode, nodeOutline.id!))
-      //                 : [], // Recursively map children, if any
-      //             };
-      //           };
-              
-      //           return mapModuleNodeOutlineToModuleNode(moduleNodeOutline, moduleOutlineData.id!); // Root-level parent id is moduleOutlineData.id
-      //         });
-              
-      //         console.log("Module nodes:", JSON.stringify(moduleNodes, null, 2));
+                    await assistantController.insertChatHistory(
+                      {
+                        role: 'assistant',
+                        content: moduleDirective,
+                      },
+                      assistantMessageId,
+                      MessageType.Action,
+                      workspaceId
+                    );
+            
+                    client.emit('end', workspaceId);
+                  }
+                });
+            }
+          });
+        } catch(error) {
+          console.error("Error generating module outline: ", error);
+        }
+      } else {
+        try {
+          const userMessageId = uuid();
+          const actionNotificationDirective = `::action_notification{actionMessage="Module Creation Confirmed"}`;
   
-      //         const moduleBuffer: Module = {
-      //           id: rootNode!,
-      //           name: moduleOutlineData.name,
-      //           description: moduleOutlineData.description,
-      //           nodes: moduleNodes
-      //         }
+          client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async({ ack }) => {
+            if (ack === 'success') {
+              client.emit('end', workspaceId);
+  
+              await assistantController.insertChatHistory(
+                {
+                  role: 'user',
+                  content: actionNotificationDirective,
+                },
+                userMessageId,
+                MessageType.Action,
+                workspaceId
+              );
       
-      //         workspaceModulesBufferProxy.set(serializedKey, moduleBuffer);
+              // Handle direct module outline generation without user confirmation
+              let moduleOutlineData = await generateModuleOutlineResponse(this.openai, subject, context_instructions);
       
-      //         let i = 0;
-      //         for (const node of moduleNodes) {
-      //           const traverseModuleNodes = async (
-      //             moduleId: string,
-      //             workspaceId: string,
-      //             node: ModuleNodeOutline
-      //           ) => {
-      //             // Call generateModuleNodeContent for the current node sequentially
-      //             if (node.id) {
-      //               await this.generateModuleNodeContent(
-      //                 moduleId,
-      //                 node.id,
-      //                 workspaceId,
-      //                 node.title,
-      //                 node.description,
-      //                 subject,
-      //                 context_instructions
-      //               );
-      //             }
+              const result = await moduleController.createModuleCallback(moduleOutlineData.name, moduleOutlineData.description, workspaceId);
+              const rootNode = result.moduleId;
+      
+              await Promise.all(
+                moduleOutlineData.moduleNodes.map(async (node: ModuleNodeOutline) => {
+                  await insertModuleNode(rootNode!, node, rootNode!);
+                })
+              );
               
-      //             // workspaceModulesBufferProxy.emit(serializedKey, 'update-module-node', moduleId, node.id, workspaceId, node.description, node.description);
-                  
-      //             console.log("Iteration", i++);
-
-      //             // If this node has children, recursively call traverseModuleNodes for each child
-      //             if (node.children && node.children.length > 0) {
-      //               for (const childNode of node.children) {
-      //                 await traverseModuleNodes(moduleId, workspaceId, childNode);
-      //               }
-      //             }
-      //           };
-              
-      //           // Traverse each module node sequentially
-      //           await traverseModuleNodes(rootNode!, workspaceId, node);
-      //         }
-              
-      //         workspaceModulesBufferProxy.emit(serializedKey, 'end');
-      //       }
-      //     }
-      //   });
-      // }
+              console.log("Module nodes of prev:", JSON.stringify(moduleOutlineData.moduleNodes, null, 2));
+      
+              await createModuleFromOutline(client, moduleOutlineData, result, workspaceId, rootNode!, subject, context_instructions, workspaceModulesBufferProxy, this.openai);
+  
+            }
+          });
+        } catch(error) {
+          console.error("Error generating module: ", error);
+        }
       }
     });
 
@@ -246,113 +177,64 @@ class AISocketHandler {
 
     client.on('confirm-module-outline-response', async(action, workspaceId, moduleId, module, subject, context_instructions) => {
       if (action === 'submit') {
-        console.log('User accepted the module outline');
-        const userMessageId = uuid();
-        const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Accepted by User"}`;
+        try {
+          console.log('User accepted the module outline');
+          const userMessageId = uuid();
+          const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Accepted by User"}`;
+  
+          client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async ({ ack }) => {
+            if (ack === 'success') {
+              await assistantController.insertChatHistory(
+                {
+                  role: 'user',
+                  content: actionNotificationDirective,
+                },
+                userMessageId,
+                MessageType.Action,
+                workspaceId
+              );
+      
+              const result = await moduleController.createModuleCallback(module.name, module.description, workspaceId, moduleId);
+              const rootNode = result.moduleId;
+            
+              await Promise.all(
+                module.nodes.map(async (node: ModuleNodeOutline) => {
+                  await insertModuleNode(rootNode!, node, rootNode!);
+                })
+              );
 
-        client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async ({ ack }) => {
-          if (ack === 'success') {
-            await assistantController.insertChatHistory(
-              {
-                role: 'user',
-                content: actionNotificationDirective,
-              },
-              userMessageId,
-              MessageType.Action,
-              workspaceId
-            );
-    
-            const result = await moduleController.createModuleCallback(module.name, module.description, workspaceId, moduleId);
-            const rootNode = result.moduleId;
-          
-            await Promise.all(
-              module.nodes.map(async (node: ModuleNodeOutline) => {
-                await insertModuleNode(rootNode!, node, rootNode!);
-              })
-            );
-    
-            // Generate the Module
-            await createModule(client, moduleId, workspaceId, module, subject, context_instructions, workspaceModulesBufferProxy, this.openai);
-          }
-        });
-
-        // client.emit('create-module', moduleId!, workspaceId, module.name, module.description, async (ack) => {
-        //   if (ack === 'module-created') {
-        //     // Proceed with the accepted module outline 
-        //     console.log("Module outline data", module);
-    
-        //     const serializedKey = serializeTuple([moduleId, workspaceId]);
-            
-        //     const moduleBuffer: Module = {
-        //       id: moduleId,
-        //       name: module.name,
-        //       description: module.description,
-        //       nodes: module.nodes
-        //     }
-    
-        //     workspaceModulesBufferProxy.set(serializedKey, moduleBuffer);
-    
-        //     let i = 0;
-        //     for (const node of module.nodes) {
-        //       const traverseModuleNodes = async (
-        //         moduleId: string,
-        //         workspaceId: string,
-        //         node: ModuleNodeOutline
-        //       ) => {
-        //         // Call generateModuleNodeContent for the current node sequentially
-        //         if (node.id) {
-        //           await this.generateModuleNodeContent(
-        //             moduleId,
-        //             node.id,
-        //             workspaceId,
-        //             node.title,
-        //             node.description,
-        //             subject,
-        //             context_instructions
-        //           );
-        //         }
-            
-        //         // workspaceModulesBufferProxy.emit(serializedKey, 'update-module-node', moduleId, node.id, workspaceId, node.description, node.description);
-                
-        //         console.log("Iteration", i++);
-    
-        //         // If this node has children, recursively call traverseModuleNodes for each child
-        //         if (node.children && node.children.length > 0) {
-        //           for (const childNode of node.children) {
-        //             await traverseModuleNodes(moduleId, workspaceId, childNode);
-        //           }
-        //         }
-        //       };
-            
-        //       // Traverse each module node sequentially
-        //       await traverseModuleNodes(moduleId, workspaceId, node);
-        //     }
-            
-        //     workspaceModulesBufferProxy.emit(serializedKey, 'end');
-        //   }
-        // })
-
+              // Generate the Module
+              await createModule(client, moduleId, workspaceId, module, subject, context_instructions, workspaceModulesBufferProxy, this.openai);
+            }
+          });
+        } catch(error) {
+          console.error("Error generating module: ", error);
+        }
       } else if (action === 'cancel') {
-        console.log('User canceled the module outline generation');
-        const userMessageId = uuid();
-        const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Rejected by User"}`;
-
-        client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async({ ack }) => {
-          if (ack == 'success') {
-            await assistantController.insertChatHistory(
-              {
-                role: 'user',
-                content: actionNotificationDirective,
-              },
-              userMessageId,
-              MessageType.Action,
-              workspaceId
-            );
-    
-            // End assistant message sequence
-            client.emit('end', workspaceId);
-          }
-        });
+        try {
+          console.log('User canceled the module outline generation');
+          const userMessageId = uuid();
+          const actionNotificationDirective = `::action_notification{actionMessage="Module Outline Rejected by User"}`;
+  
+          client.emit('initialize-user-message', userMessageId, actionNotificationDirective, MessageType.Action, workspaceId, async({ ack }) => {
+            if (ack == 'success') {
+              await assistantController.insertChatHistory(
+                {
+                  role: 'user',
+                  content: actionNotificationDirective,
+                },
+                userMessageId,
+                MessageType.Action,
+                workspaceId
+              );
+      
+              // End assistant message sequence
+              client.emit('end', workspaceId);
+            }
+          });
+        } catch(error) {
+          console.error("Unexpected error in cancelling module outline generation: ", error);
+        }
       }
     })
   }    
@@ -363,34 +245,31 @@ class AISocketHandler {
     if (typeof message === 'object') {
       chatHistory.push(message);
     } else {
-      
-      
       const userTokens = await calculateTokens4o_mini(message);
-      
       const userMessageId = uuid();
 
       client.emit('initialize-user-message', userMessageId, message, MessageType.Standard, workspaceId, async ({ ack }) => {
         console.log("Ack user message: ", ack);
         if (ack === 'success') {
-          chatHistory.push({
-            role: 'user',
-            content: message,
-          });
-    
-          assistantController.insertChatHistory(
-            {
+          try {
+            chatHistory.push({
               role: 'user',
               content: message,
-            },
-            userMessageId,
-            MessageType.Standard,
-            workspaceId
-          );
-
-          try {
+            });
+      
+            await assistantController.insertChatHistory(
+              {
+                role: 'user',
+                content: message,
+              },
+              userMessageId,
+              MessageType.Standard,
+              workspaceId
+            );
             await this.processMessagePipeline(client, message, workspaceId, userTokens, chatHistory);
           } catch (error) {
-            console.error("Error processing pipeline: ", error)
+            console.error("Error processing pipeline: ", error);
+            throw error;
           }
         }
       });
@@ -675,8 +554,9 @@ class AISocketHandler {
                   assistantMessageId,
                   MessageType.Standard,
                   workspaceId
-                );
-                resolve(finalIntermediateResponse);
+                ).then(() => resolve(finalIntermediateResponse));
+                  
+                
               } catch(error) {
                 throw error;
               }
@@ -745,7 +625,7 @@ class AISocketHandler {
                 
                 client.emit('end', workspaceId);
       
-                assistantController.insertChatHistory(
+                await assistantController.insertChatHistory(
                   {
                     role: 'assistant',
                     content: moduleOutlineConfirmDirective,
