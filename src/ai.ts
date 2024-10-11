@@ -232,6 +232,8 @@ class AISocketHandler {
           client.emit('module-outline-data', assistantMessageId, workspaceId, moduleId, JSON.stringify(moduleOutlineData));
           
           client.removeAllListeners('directive-ready');
+
+          client.emit('end', workspaceId);
           // attachConfirmModuleReponseListener(receivedAssistantMessageId, receivedWorkspaceId, handleDirectiveReady);
         } else {
           console.warn('Received directive-ready event with mismatched assistantMessageId or workspaceId');
@@ -368,7 +370,7 @@ class AISocketHandler {
       const userMessageId = uuid();
 
       client.emit('initialize-user-message', userMessageId, message, MessageType.Standard, workspaceId, async ({ ack }) => {
-        console.log("Ack: ", ack);
+        console.log("Ack user message: ", ack);
         if (ack === 'success') {
           chatHistory.push({
             role: 'user',
@@ -433,7 +435,7 @@ class AISocketHandler {
         }
         
         const systemPrompt = 
-        `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied (i.e. the context information block is empty), inform the user by saying something along the lines of: "The system did not find the relevant information..." but try to answer as accurately as possible. Otherwise if there is relevant context information available, just answer normally based on the available information.
+        `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied , ust answer normally based on your available knowledge. Otherwise, base your response on the information within the context block.
 
         subject: ${intentDecompositionCompletion.parsed.subject}
         context_instructions: ${intentDecompositionCompletion.parsed.context_instructions}
@@ -463,15 +465,21 @@ class AISocketHandler {
         
         const commandTypeCompletion = await commandDecomposition(this.openai, intentDecompositionCompletion.parsed?.context_instructions);
         console.log("Command type:", commandTypeCompletion.parsed?.command_type);
-        await this.commandPipelineProcessing(
-          client, 
-          commandTypeCompletion.parsed?.command_type,
-          intentDecompositionCompletion.parsed.subject,
-          intentDecompositionCompletion.parsed.context_instructions,
-          workspaceId,
-          chatHistory,
-          userTokens
-        )
+
+        try {
+          await this.commandPipelineProcessing(
+            client, 
+            commandTypeCompletion.parsed?.command_type,
+            intentDecompositionCompletion.parsed.subject,
+            intentDecompositionCompletion.parsed.context_instructions,
+            workspaceId,
+            chatHistory,
+            userTokens
+          )
+        } catch(error){
+          console.error("Error generating query response:", error);
+          throw error;
+        }
 
         break;
       case IntentTypeEnum.Values.informative:
@@ -513,7 +521,7 @@ class AISocketHandler {
     // Hacky bandaid fix for weird callback behavior via proxy. Do not modify until socket.io is patched. 
     this.workspaceMessagesBufferProxy.emit(serializedKey, 'initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId, async ({ ack }: any) => {});
     client.emit('initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId, async ({ ack }: any) => {
-      console.log("Ack: ", ack);
+      console.log("Ack assistant message: ", ack);
       if (ack === 'success') {
         const stream = this.openai.beta.chat.completions.stream({
           model: "gpt-4o-mini",
@@ -556,12 +564,16 @@ class AISocketHandler {
           message: (message) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'message', message, workspaceId),
           finalMessage: async (message) => {
             this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalMessage', message, workspaceId);
-            assistantController.insertChatHistory(
-              message,
-              assistantMessageId,
-              MessageType.Standard,
-              workspaceId
-            );
+            try {
+              await assistantController.insertChatHistory(
+                message,
+                assistantMessageId,
+                MessageType.Standard,
+                workspaceId
+              );
+            } catch(error) {
+              throw error;
+            }
           },
           functionCall: (functionCall) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'functionCall', functionCall, workspaceId),
           finalFunctionCall: (finalFunctionCall) =>
@@ -603,6 +615,7 @@ class AISocketHandler {
       // Hacky bandaid fix for weird callback behavior via proxy. Do not modify until socket.io is patched. 
       this.workspaceMessagesBufferProxy.emit(serializedKey, 'initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId, async ({ ack }: any) => {});
       client.emit('initialize-assistant-message', assistantMessageId, MessageType.Standard, workspaceId, async ({ ack }: any) => {
+        console.log("Ack intermediate response: ", ack);
         if (ack === 'success') {
           const systemPrompt = 
           `You are an AI agent that's part of a user input processing pipeline who's main task is to give short, intermediate responses to the user depending on the [subject] and the [context_instructions] if applicable. Give your responses as if you are reassuring the user that their request is being processed.
@@ -655,12 +668,16 @@ class AISocketHandler {
             finalMessage: async (message) => {
               this.workspaceMessagesBufferProxy.emit(serializedKey, 'finalMessage', message, workspaceId);
               finalIntermediateResponse = message.content as string;
-              assistantController.insertChatHistory(
-                message,
-                assistantMessageId,
-                MessageType.Standard,
-                workspaceId
-              );
+              try {
+                await assistantController.insertChatHistory(
+                  message,
+                  assistantMessageId,
+                  MessageType.Standard,
+                  workspaceId
+                );
+              } catch(error) {
+                throw error;
+              }
             },
             functionCall: (functionCall) => this.workspaceMessagesBufferProxy.emit(serializedKey, 'functionCall', functionCall, workspaceId),
             finalFunctionCall: (finalFunctionCall) =>
@@ -703,39 +720,44 @@ class AISocketHandler {
     
     switch(commandTypeCompletion) {
       case commandTypeEnum.Values.create_module:
-        const intermediateResponseMessage = await this.intermediateResponse(
-          client,
-          subject,
-          context_instructions,
-          `The user needs to confirm if the wants to generate the module outline first or directly generate the module and let the system decide the outline directly without confirmation.`,
-          workspaceId,
-          chatHistory.slice(-1),
-          userTokens
-        );
-        console.log("Intermediate reponse:", intermediateResponseMessage);
+        try {
+          const intermediateResponseMessage = await this.intermediateResponse(
+            client,
+            subject,
+            context_instructions,
+            `The user needs to confirm if the wants to generate the module outline first or directly generate the module and let the system decide the outline directly without confirmation.`,
+            workspaceId,
+            chatHistory.slice(-1),
+            userTokens
+          );
+          console.log("Intermediate reponse:", intermediateResponseMessage);
+  
+          if (intermediateResponseMessage) {
+            const assistantMessageId = uuid();
+            client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId, async ({ ack }) => {
+              if (ack === 'success') {
+                const moduleOutlineConfirmDirective = `\n\n::module_outline_generation_confirm{subject="${subject}" context_instructions="${context_instructions}"}\n\n`;
+                client.emit('content', moduleOutlineConfirmDirective, moduleOutlineConfirmDirective as any, assistantMessageId, workspaceId);
+                
+                client.emit('end', workspaceId);
+      
+                assistantController.insertChatHistory(
+                  {
+                    role: 'assistant',
+                    content: moduleOutlineConfirmDirective,
+                  },
+                  assistantMessageId,
+                  MessageType.Action,
+                  workspaceId
+                );
+              }
+            });
+            
+            // Go to `module-outline-generation` listener for pipeline flow continuation
+          }
 
-        if (intermediateResponseMessage) {
-          const assistantMessageId = uuid();
-          client.emit('initialize-assistant-message', assistantMessageId, MessageType.Action, workspaceId, async ({ ack }) => {
-            if (ack === 'success') {
-              const moduleOutlineConfirmDirective = `\n\n::module_outline_generation_confirm{subject="${subject}" context_instructions="${context_instructions}"}\n\n`;
-              client.emit('content', moduleOutlineConfirmDirective, moduleOutlineConfirmDirective as any, assistantMessageId, workspaceId);
-              
-              client.emit('end', workspaceId);
-    
-              assistantController.insertChatHistory(
-                {
-                  role: 'assistant',
-                  content: moduleOutlineConfirmDirective,
-                },
-                assistantMessageId,
-                MessageType.Action,
-                workspaceId
-              );
-            }
-          });
-          
-          // Go to `module-outline-generation` listener for pipeline flow continuation
+        } catch(error) {
+          console.error("Error generating intermediate response: ", error);
         }
 
         break;
