@@ -22,12 +22,4 @@ router.post('/specifications/additionalspecifications', workspaceController.inse
 router.patch('/specifications/additionalspecifications', workspaceController.updateAdditionalSpecification)
 router.delete('/specifications/additionalspecifications/:AdditionalSpecID', workspaceController.removeAdditionalSpecification)
 
-// TODO: Delete this garbage
-router.post('/lessons/pages', workspaceController.createLessonPage)
-router.get('/lessons/pages/:lessonId', workspaceController.getLessonPages)
-router.patch('/lessons/pages/update/title', workspaceController.updatePageTitle)
-router.patch('/lessons/pages/update/content', workspaceController.updatePageContent)
-router.delete('/lessons/pages/:lessonId/:pageId', workspaceController.deleteLessonPage)
-
-
 export default router;

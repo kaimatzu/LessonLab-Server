@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 02, 2024 at 09:56 PM
+-- Generation Time: Oct 14, 2024 at 05:47 PM
 -- Server version: 8.0.39-0ubuntu0.22.04.1
 -- PHP Version: 8.2.4
 
@@ -20,9 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Database: `lessonlab_db`
 --
-DROP DATABASE IF EXISTS `lessonlab_db`;
-CREATE DATABASE IF NOT EXISTS `lessonlab_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-USE `lessonlab_db`;
 
 -- --------------------------------------------------------
 
@@ -30,12 +27,14 @@ USE `lessonlab_db`;
 -- Table structure for table `AdditionalSpecifications`
 --
 
-CREATE TABLE `AdditionalSpecifications` (
+CREATE TABLE IF NOT EXISTS `AdditionalSpecifications` (
   `AdditionalSpecID` char(36) NOT NULL,
   `SpecificationID` char(36) NOT NULL,
   `SpecificationText` text,
   `PrevID` char(36) DEFAULT NULL,
-  `NextID` char(36) DEFAULT NULL
+  `NextID` char(36) DEFAULT NULL,
+  PRIMARY KEY (`AdditionalSpecID`),
+  KEY `SpecificationID` (`SpecificationID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -44,10 +43,12 @@ CREATE TABLE `AdditionalSpecifications` (
 -- Table structure for table `Answers`
 --
 
-CREATE TABLE `Answers` (
-  `AnswerID` int NOT NULL,
+CREATE TABLE IF NOT EXISTS `Answers` (
+  `AnswerID` int NOT NULL AUTO_INCREMENT,
   `QuestionID` int DEFAULT NULL,
-  `Content` text
+  `Content` text,
+  PRIMARY KEY (`AnswerID`),
+  KEY `QuestionID` (`QuestionID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -56,35 +57,15 @@ CREATE TABLE `Answers` (
 -- Table structure for table `ChatHistory`
 --
 
-CREATE TABLE `ChatHistory` (
+CREATE TABLE IF NOT EXISTS `ChatHistory` (
   `MessageID` char(36) NOT NULL,
   `Content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `Role` enum('user','assistant') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT 'user',
   `Type` enum('standard','action') NOT NULL DEFAULT 'standard',
   `CreatedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `Classes`
---
-
-CREATE TABLE `Classes` (
-  `ClassID` char(36) NOT NULL,
-  `TeacherID` char(36) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `ClassStudents`
---
-
-CREATE TABLE `ClassStudents` (
-  `StudentID` char(36) DEFAULT NULL,
-  `ClassID` char(36) DEFAULT NULL
+  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  PRIMARY KEY (`MessageID`),
+  KEY `ChatHistory_ibfk_1` (`WorkspaceID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -93,23 +74,14 @@ CREATE TABLE `ClassStudents` (
 -- Table structure for table `Documents`
 --
 
-CREATE TABLE `Documents` (
+CREATE TABLE IF NOT EXISTS `Documents` (
   `DocumentID` char(36) NOT NULL,
   `DocumentName` varchar(255) DEFAULT NULL,
   `DocumentData` longblob,
   `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
-  `DocumentType` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `Lessons`
---
-
-CREATE TABLE `Lessons` (
-  `LessonID` char(36) NOT NULL,
-  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
+  `DocumentType` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`DocumentID`),
+  KEY `Documents_ibfk_1` (`WorkspaceID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -118,12 +90,15 @@ CREATE TABLE `Lessons` (
 -- Table structure for table `module_ModuleClosureTable`
 --
 
-CREATE TABLE `module_ModuleClosureTable` (
+CREATE TABLE IF NOT EXISTS `module_ModuleClosureTable` (
   `ModuleID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Ancestor` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Descendant` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Depth` int NOT NULL,
-  `Position` int NOT NULL
+  `Position` int NOT NULL,
+  PRIMARY KEY (`Ancestor`,`Descendant`),
+  KEY `ModuleClosureTable_ibfk_2` (`Descendant`),
+  KEY `ModuleClosureTable_ibfk_3` (`ModuleID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -158,12 +133,14 @@ DELIMITER ;
 -- Table structure for table `module_ModuleNodes`
 --
 
-CREATE TABLE `module_ModuleNodes` (
+CREATE TABLE IF NOT EXISTS `module_ModuleNodes` (
   `ModuleNodeID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `CreateAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `ModuleID` char(36) NOT NULL
+  `ModuleID` char(36) NOT NULL,
+  PRIMARY KEY (`ModuleNodeID`),
+  KEY `module_ibfk_2` (`ModuleID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -172,27 +149,14 @@ CREATE TABLE `module_ModuleNodes` (
 -- Table structure for table `module_Modules`
 --
 
-CREATE TABLE `module_Modules` (
+CREATE TABLE IF NOT EXISTS `module_Modules` (
   `ModuleID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `Description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `CreatedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `WorkspaceID` char(36) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `Pages`
---
-
-CREATE TABLE `Pages` (
-  `PageID` char(36) NOT NULL,
-  `PageTitle` varchar(255) DEFAULT NULL,
-  `Content` longtext,
-  `LessonID` char(36) DEFAULT NULL,
-  `PrevID` char(36) DEFAULT NULL,
-  `NextID` char(36) DEFAULT NULL
+  `WorkspaceID` char(36) NOT NULL,
+  PRIMARY KEY (`ModuleID`),
+  KEY `fk_workspace_id` (`WorkspaceID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -201,10 +165,12 @@ CREATE TABLE `Pages` (
 -- Table structure for table `Questions`
 --
 
-CREATE TABLE `Questions` (
-  `QuestionID` int NOT NULL,
+CREATE TABLE IF NOT EXISTS `Questions` (
+  `QuestionID` int NOT NULL AUTO_INCREMENT,
   `QuestionType` enum('ESSAY','MULTIPLE_CHOICE','BOOLEAN','NUMERIC') DEFAULT NULL,
-  `QuizID` char(36) DEFAULT NULL
+  `QuizID` char(36) DEFAULT NULL,
+  PRIMARY KEY (`QuestionID`),
+  KEY `QuizID` (`QuizID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -213,9 +179,11 @@ CREATE TABLE `Questions` (
 -- Table structure for table `Quizzes`
 --
 
-CREATE TABLE `Quizzes` (
+CREATE TABLE IF NOT EXISTS `Quizzes` (
   `QuizID` char(36) NOT NULL,
-  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL
+  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  PRIMARY KEY (`QuizID`),
+  UNIQUE KEY `MaterialID` (`WorkspaceID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -224,14 +192,16 @@ CREATE TABLE `Quizzes` (
 -- Table structure for table `Specifications`
 --
 
-CREATE TABLE `Specifications` (
+CREATE TABLE IF NOT EXISTS `Specifications` (
   `SpecificationID` char(36) NOT NULL,
   `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
   `Topic` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
   `WritingLevel` enum('Elementary','High-school','College','Professional') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Elementary',
   `ComprehensionLevel` enum('Simple','Standard','Comprehensive') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Simple',
   `CreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL
+  `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  PRIMARY KEY (`SpecificationID`),
+  KEY `MaterialID` (`WorkspaceID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -240,14 +210,17 @@ CREATE TABLE `Specifications` (
 -- Table structure for table `Users`
 --
 
-CREATE TABLE `Users` (
+CREATE TABLE IF NOT EXISTS `Users` (
   `UserID` char(36) NOT NULL,
   `UserType` enum('STUDENT','TEACHER') DEFAULT 'STUDENT',
   `Name` varchar(255) DEFAULT NULL,
   `Username` varchar(255) DEFAULT NULL,
   `Password` varchar(255) DEFAULT NULL,
   `Email` varchar(255) DEFAULT NULL,
-  `Tokens` int DEFAULT '0'
+  `Tokens` int DEFAULT '0',
+  PRIMARY KEY (`UserID`),
+  UNIQUE KEY `unique_username` (`Username`),
+  UNIQUE KEY `unique_email` (`Email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -256,145 +229,14 @@ CREATE TABLE `Users` (
 -- Table structure for table `Workspaces`
 --
 
-CREATE TABLE `Workspaces` (
+CREATE TABLE IF NOT EXISTS `Workspaces` (
   `WorkspaceID` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `WorkspaceName` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `CreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `UserID` char(36) DEFAULT NULL
+  `UserID` char(36) DEFAULT NULL,
+  PRIMARY KEY (`WorkspaceID`),
+  KEY `Materials_ibfk_1` (`UserID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
---
--- Indexes for dumped tables
---
-
---
--- Indexes for table `AdditionalSpecifications`
---
-ALTER TABLE `AdditionalSpecifications`
-  ADD PRIMARY KEY (`AdditionalSpecID`),
-  ADD KEY `SpecificationID` (`SpecificationID`);
-
---
--- Indexes for table `Answers`
---
-ALTER TABLE `Answers`
-  ADD PRIMARY KEY (`AnswerID`),
-  ADD KEY `QuestionID` (`QuestionID`);
-
---
--- Indexes for table `ChatHistory`
---
-ALTER TABLE `ChatHistory`
-  ADD PRIMARY KEY (`MessageID`),
-  ADD KEY `ChatHistory_ibfk_1` (`WorkspaceID`);
-
---
--- Indexes for table `Classes`
---
-ALTER TABLE `Classes`
-  ADD PRIMARY KEY (`ClassID`),
-  ADD KEY `TeacherID` (`TeacherID`);
-
---
--- Indexes for table `ClassStudents`
---
-ALTER TABLE `ClassStudents`
-  ADD UNIQUE KEY `unique_class_student` (`StudentID`,`ClassID`),
-  ADD KEY `ClassID` (`ClassID`);
-
---
--- Indexes for table `Documents`
---
-ALTER TABLE `Documents`
-  ADD PRIMARY KEY (`DocumentID`),
-  ADD KEY `Documents_ibfk_1` (`WorkspaceID`);
-
---
--- Indexes for table `Lessons`
---
-ALTER TABLE `Lessons`
-  ADD PRIMARY KEY (`LessonID`),
-  ADD UNIQUE KEY `MaterialID` (`WorkspaceID`);
-
---
--- Indexes for table `module_ModuleClosureTable`
---
-ALTER TABLE `module_ModuleClosureTable`
-  ADD PRIMARY KEY (`Ancestor`,`Descendant`),
-  ADD KEY `ModuleClosureTable_ibfk_2` (`Descendant`),
-  ADD KEY `ModuleClosureTable_ibfk_3` (`ModuleID`);
-
---
--- Indexes for table `module_ModuleNodes`
---
-ALTER TABLE `module_ModuleNodes`
-  ADD PRIMARY KEY (`ModuleNodeID`),
-  ADD KEY `module_ibfk_2` (`ModuleID`);
-
---
--- Indexes for table `module_Modules`
---
-ALTER TABLE `module_Modules`
-  ADD PRIMARY KEY (`ModuleID`),
-  ADD KEY `fk_workspace_id` (`WorkspaceID`);
-
---
--- Indexes for table `Pages`
---
-ALTER TABLE `Pages`
-  ADD PRIMARY KEY (`PageID`);
-
---
--- Indexes for table `Questions`
---
-ALTER TABLE `Questions`
-  ADD PRIMARY KEY (`QuestionID`),
-  ADD KEY `QuizID` (`QuizID`);
-
---
--- Indexes for table `Quizzes`
---
-ALTER TABLE `Quizzes`
-  ADD PRIMARY KEY (`QuizID`),
-  ADD UNIQUE KEY `MaterialID` (`WorkspaceID`);
-
---
--- Indexes for table `Specifications`
---
-ALTER TABLE `Specifications`
-  ADD PRIMARY KEY (`SpecificationID`),
-  ADD KEY `MaterialID` (`WorkspaceID`);
-
---
--- Indexes for table `Users`
---
-ALTER TABLE `Users`
-  ADD PRIMARY KEY (`UserID`),
-  ADD UNIQUE KEY `unique_username` (`Username`),
-  ADD UNIQUE KEY `unique_email` (`Email`);
-
---
--- Indexes for table `Workspaces`
---
-ALTER TABLE `Workspaces`
-  ADD PRIMARY KEY (`WorkspaceID`),
-  ADD KEY `Materials_ibfk_1` (`UserID`);
-
---
--- AUTO_INCREMENT for dumped tables
---
-
---
--- AUTO_INCREMENT for table `Answers`
---
-ALTER TABLE `Answers`
-  MODIFY `AnswerID` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `Questions`
---
-ALTER TABLE `Questions`
-  MODIFY `QuestionID` int NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
@@ -419,29 +261,10 @@ ALTER TABLE `ChatHistory`
   ADD CONSTRAINT `ChatHistory_ibfk_1` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
--- Constraints for table `Classes`
---
-ALTER TABLE `Classes`
-  ADD CONSTRAINT `Classes_ibfk_1` FOREIGN KEY (`TeacherID`) REFERENCES `Users` (`UserID`);
-
---
--- Constraints for table `ClassStudents`
---
-ALTER TABLE `ClassStudents`
-  ADD CONSTRAINT `ClassStudents_ibfk_1` FOREIGN KEY (`StudentID`) REFERENCES `Users` (`UserID`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `ClassStudents_ibfk_2` FOREIGN KEY (`ClassID`) REFERENCES `Classes` (`ClassID`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
 -- Constraints for table `Documents`
 --
 ALTER TABLE `Documents`
   ADD CONSTRAINT `Documents_ibfk_1` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `Lessons`
---
-ALTER TABLE `Lessons`
-  ADD CONSTRAINT `Lessons_ibfk_1` FOREIGN KEY (`WorkspaceID`) REFERENCES `Workspaces` (`WorkspaceID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `module_ModuleClosureTable`
