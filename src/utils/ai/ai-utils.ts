@@ -1,30 +1,25 @@
 import OpenAI from 'openai';
 
-import { encoding_for_model } from "tiktoken";
-import { z } from "zod";
-import { zodResponseFormat } from "openai/helpers/zod";
-import { ParsedChatCompletionMessage } from 'openai/resources/beta/chat/completions';
-import { uuid } from "uuidv4";
+import {encoding_for_model} from "tiktoken";
+import {z} from "zod";
+import {zodResponseFormat} from "openai/helpers/zod";
+import {ParsedChatCompletionMessage} from 'openai/resources/beta/chat/completions';
+import {uuid} from "uuidv4";
 import moduleController from '../../controllers/moduleController';
 
-import { serializeTuple } from '../../socketServer';
+import {serializeTuple} from '../../socketServer';
 
-import { ChatCompletionMessageParam } from 'openai/resources';
+import {ChatCompletionMessageParam} from 'openai/resources';
 import documentController from '../../controllers/documentController';
-import { chunkAndEmbedFile } from '../documentProcessor';
+import {chunkAndEmbedFile} from '../documentProcessor';
 
 import {
-  Client,
   ChatCompletionEvents,
-  Options,
-  Message,
-  WorkspaceMessagesBuffer,
-  WorkspaceMessageKey,
-  WorkspaceMessagesProxy,
-  WorkspaceModulesProxy,
+  Client,
   Module,
   ModuleNode,
   WorkspaceModuleKey,
+  WorkspaceModulesProxy,
 } from '../../types/globals';
 
 //////////////////////////////////////
@@ -206,15 +201,25 @@ Information on command types:
   }
 }
 
-export async function insertModuleNode(moduleId: string, nodes: ModuleNodeOutline, ancestor: string) {
-  await moduleController.insertChildToModuleNodeCallback(ancestor, moduleId, nodes.id!, '', nodes.title);
-  if (!nodes.children || nodes.children?.length === 0) return;
+export async function insertModuleNode(moduleId: string, nodes: ModuleNodeOutline, ancestor: string, position: number = 0, depth: number = 1) {
+  try {
+    // Insert the current node with its depth and position
+    await moduleController.insertChildToModuleNodeCallback(ancestor, moduleId, nodes.id!, '', nodes.title, position, depth);
 
-  await Promise.all(
-    nodes.children.map(async (childNode: ModuleNodeOutline) => {
-      await insertModuleNode(moduleId, childNode, nodes.id!);
-    })
-  );
+    // If there are no children, return
+    if (!nodes.children || nodes.children.length === 0) return;
+
+    // Use Promise.all to insert all child nodes in parallel
+    await Promise.all(
+      nodes.children.map(async (childNode: ModuleNodeOutline, index: number) => {
+
+        // Recursively insert the child node, increasing depth by 1
+        await insertModuleNode(moduleId, childNode, nodes.id!, index, depth + 1); // Await the recursive call
+      })
+    );
+  } catch (error) {
+    console.error("Error inserting module node: ", error);
+  }
 }
 
 //////////////////////////////////////
