@@ -48,14 +48,16 @@ class UsersController {
       res.cookie('authToken', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
-        maxAge: TOKEN_MAX_AGE
+        sameSite: 'lax',
+        maxAge: TOKEN_MAX_AGE,
+        domain: process.env.ORIGIN
       });
 
       res.cookie('autoLoginToken', true, {
         secure: true,
-        sameSite: 'strict',
-        maxAge: TOKEN_MAX_AGE
+        sameSite: 'lax',
+        maxAge: TOKEN_MAX_AGE,
+        domain: process.env.ORIGIN
       });
 
       return res.status(201).json({
@@ -109,14 +111,16 @@ class UsersController {
       res.cookie('authToken', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
-        maxAge: TOKEN_MAX_AGE
+        sameSite: 'lax',
+        maxAge: TOKEN_MAX_AGE,
+        domain: process.env.ORIGIN
       });
 
       res.cookie('autoLoginToken', true, {
         secure: true,
-        sameSite: 'strict',
-        maxAge: TOKEN_MAX_AGE
+        sameSite: 'lax',
+        maxAge: TOKEN_MAX_AGE,
+        domain: process.env.ORIGIN
       });
 
       // Return user data excluding sensitive information
