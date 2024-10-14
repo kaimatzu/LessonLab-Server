@@ -157,30 +157,23 @@ class WorkspaceController {
    * @param res The response data
    */
   async updateWorkspace(req: Request, res: Response) {
-    const workspaceType = req.body.workspaceType
-    const content = req.body.content
-    const title = req.body.title
-    const workspaceId = req.params.workspaceId
+    const workspaceName = req.params.workspaceName;
+    const workspaceId = req.params.workspaceId;
+
+    console.log(workspaceId, workspaceName);
 
     try {
       const connection = await getDbConnection()
-      let result: any = await connection.execute('UPDATE Workspaces SET WorkspaceType = ?, Content = ?, Title = ? WHERE WorkspaceID', [workspaceType, content, title, workspaceId])
+      const result: any = await connection.execute('UPDATE Workspaces SET WorkspaceName = ? WHERE WorkspaceID = ?', [workspaceName, workspaceId]);
+      await connection.end()
+
       const header = result[0]
 
       if (header.changedRows === 0) {
-        await connection.end()
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: 'Workspace not found' })
       }
 
-      result = await connection.execute('SELECT * FROM Workspaces WHERE WorkspaceID = ?', [workspaceId])
-      const rows = result[0]
-      await connection.end()
-
-      if (rows.length === 0)
-        return res.status(500).json({ error: 'Server error' })
-
-      const workspace = rows[0]
-      return res.status(200).json(workspace)
+      return res.status(200)
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error. ' + error })
@@ -206,13 +199,11 @@ class WorkspaceController {
       if (header.affectedRows === 0)
         return res.status(404).json({ error: 'Workspace not found' })
 
-      res.status(204).send()
+      return res.status(204);
     } catch (error) {
       console.error(error)
       return res.status(500).json({ error: 'DB error ' + error })
     }
-
-    res.status(501).send({ message: 'Not implemented' })
   }
 
   //////////////////////////////////////

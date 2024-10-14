@@ -12,6 +12,8 @@ class ModuleController {
     this.createModuleCallback = this.createModuleCallback.bind(this);
     this.insertChildToModuleNode = this.insertChildToModuleNode.bind(this);
     this.insertChildToModuleNodeCallback = this.insertChildToModuleNodeCallback.bind(this);
+    this.updateModuleName = this.updateModuleName.bind(this);
+    this.deleteModule = this.deleteModule.bind(this);
     this.getModules = this.getModules.bind(this);
     this.getModuleTree = this.getModuleTree.bind(this);
     this.getSubtree = this.getSubtree.bind(this);
@@ -162,6 +164,107 @@ class ModuleController {
     }
   }
 
+  /**
+   * Updates the name of a module in a workspace.
+   *
+   * @param req - The express request object.
+   * @param res - The express response object.
+   */
+  async updateModuleName(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    // Check for the token
+    if (!token) {
+      return res.status(403).end(); // No token provided, return 403
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).end(); // Invalid token, return 403
+    }
+
+    // Check for the correct HTTP method
+    if (req.method !== 'PUT' && req.method !== 'PATCH') {
+      return res.status(405).end(); // Method not allowed
+    }
+
+    const workspaceId = req.params.workspaceId;
+    const moduleId = req.params.moduleId;
+    const newName = req.params.name;
+
+    // Validate workspaceId and newName
+    if (!workspaceId || !newName) {
+      return res.status(400).end(); // Bad request if either is missing
+    }
+
+    try {
+      const connection = await getDbConnection();
+
+      // Update the module name in the database
+      await connection.execute(
+          `UPDATE module_Modules SET Name = ? WHERE WorkspaceID = ? AND ModuleID = ?`,
+          [newName, workspaceId, moduleId]
+      );
+
+      await connection.end();
+
+      res.status(204).end(); // No content, successful update
+    } catch (error) {
+      console.error('Error updating module name:', error);
+      res.status(500).end(); // Internal server error
+    }
+  }
+
+  /**
+   * Deletes a module from a workspace.
+   *
+   * @param req - The express request object.
+   * @param res - The express response object.
+   */
+  async deleteModule(req: Request, res: Response) {
+    const token = req.cookies.authToken;
+
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
+    if (!decoded) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+
+    if (req.method !== 'DELETE') {
+      return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
+    const { moduleId } = req.params; // Get moduleId from request parameters
+
+    if (!moduleId) {
+      return res.status(400).json({ message: "Module ID is required" });
+    }
+
+    try {
+      const connection = await getDbConnection();
+
+      // Delete the module from the database
+      const result: any = await connection.execute(
+          `DELETE FROM module_Modules WHERE ModuleID = ?`, // Assuming the column name is `id`
+          [moduleId]
+      );
+      const header = result[0];
+
+      await connection.end();
+
+      if (header.changedRows === 0) {
+        return res.status(404).json({ message: 'Module not found' }); // Handle case where no rows were deleted
+      }
+
+      res.status(204).end(); // No content, successful deletion
+    } catch (error) {
+      console.error('Error deleting module:', error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  }
 
   /**
   * Inserts a new child node under a specific module node.
@@ -212,9 +315,10 @@ class ModuleController {
         [parentNodeId, parentNodeId, moduleId, moduleId]
       );
 
+      console.log("Position Data", positionData[0].siblingCount, positionData[0]);
+
       const newPosition = positionData[0].siblingCount;
 
-  
       // First, fetch the depth separately
       const [depthResult]: any = await connection.execute(
         `SELECT Depth FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?`,
@@ -247,7 +351,7 @@ class ModuleController {
   * @param content The node's content.
   * @param title The node's title.
   */ 
-  async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, title: string) {
+  async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, title: string, position: number, depth: number) {
     try {
       const connection = await getDbConnection();
   
@@ -272,31 +376,12 @@ class ModuleController {
         'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
         [moduleNodeID, title, content, moduleId]
       );
-  
-      // Calculate the new position as the count of current siblings
-      const [positionData]: any = await connection.execute(
-        `SELECT COUNT(*) AS siblingCount FROM module_ModuleClosureTable 
-        WHERE Ancestor = ? AND Depth = (SELECT Depth + 1 FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?) 
-        AND ModuleID = ?`,
-        [parentNodeId, parentNodeId, moduleId, moduleId]
-      );
 
-      const newPosition = positionData[0].siblingCount;
-
-  
-      // First, fetch the depth separately
-      const [depthResult]: any = await connection.execute(
-        `SELECT Depth FROM module_ModuleClosureTable WHERE Descendant = ? AND ModuleID = ?`,
-        [parentNodeId, moduleId]
-      );
-
-      const newDepth = depthResult[0].Depth + 1;
-
-      // Now perform the insert
+      // Perform the insert
       await connection.execute(
         `INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position)
         VALUES (?, ?, ?, ?, ?)`,
-        [moduleId, parentNodeId, moduleNodeID, newDepth, newPosition]
+        [moduleId, parentNodeId, moduleNodeID, depth, position]
       );
 
       await connection.end();
@@ -593,6 +678,8 @@ class ModuleController {
     }
 
     const { moduleNodeId, title } = req.body;
+    console.log("Module data", moduleNodeId, title);
+
     if (!moduleNodeId || !title) {
       return res.status(400).json({ message: 'Module Node ID and title are required' });
     }
@@ -640,32 +727,50 @@ class ModuleController {
   }
 
   /**
-  * Deletes a module node.
-  * 
-  * @param req The request object, expected to contain the module node ID.
-  * @param res The response object.
-  */ 
+   * Deletes a module node and updates positions of other nodes.
+   *
+   * @param req The request object, expected to contain the module node ID.
+   * @param res The response object.
+   */
   async deleteModuleNode(req: Request, res: Response) {
     if (req.method !== 'DELETE') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { moduleNodeId } = req.body;
+    const { moduleNodeId } = req.params;
     if (!moduleNodeId) {
       return res.status(400).json({ message: 'Module Node ID is required' });
     }
 
     try {
       const connection = await getDbConnection();
-      
-      // Delete the module node
+
+      // Step 1: Get the node to delete, including its Position and Depth
+      const [nodeRows]: any[] = await connection.execute(
+          'SELECT Position, Depth, ModuleID FROM module_ModuleClosureTable WHERE Descendant = ?',
+          [moduleNodeId]
+      );
+
+      if (nodeRows.length === 0) {
+        return res.status(404).json({ message: 'Module node not found' });
+      }
+
+      const { Position: deletedNodePosition, Depth: deletedNodeDepth, ModuleID: moduleId } = nodeRows[0];
+
+      // Step 2: Update positions of nodes with the same Depth and higher Position
       await connection.execute(
-        'DELETE FROM module_ModuleNodes WHERE ModuleNodeID = ?',
-        [moduleNodeId]
+          'UPDATE module_ModuleClosureTable SET Position = Position - 1 WHERE ModuleID = ? AND Depth = ? AND Position > ?',
+          [moduleId, deletedNodeDepth, deletedNodePosition]
+      );
+
+      // Step 3: Delete the module node
+      await connection.execute(
+          'DELETE FROM module_ModuleClosureTable WHERE Descendant = ?',
+          [moduleNodeId]
       );
 
       await connection.end();
-      return res.status(200).json({ message: 'Module node deleted successfully' });
+      return res.status(204).end(); // No content, successful deletion
     } catch (error) {
       console.error('Error deleting module node:', error);
       return res.status(500).json({ message: 'Internal Server Error' });

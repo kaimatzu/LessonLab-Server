@@ -4,26 +4,17 @@ import {
   ChatCompletionEvents,
   Options,
   Message,
-  WorkspaceMessagesBuffer,
   WorkspaceMessageKey,
   WorkspaceMessagesProxy,
   WorkspaceModulesProxy,
-  Module,
-  ModuleNode,
-  WorkspaceModuleKey,
 } from './types/globals';
 import { uuid } from 'uuidv4';
 import assistantController from '../src/controllers/assistantController';
-import { calculateTokens4o_mini, commandDecomposition, commandTypeEnum, createModule, createModuleFromOutline, createModuleOutline, generateModuleOutlineResponse, insertModuleNode, intentDecomposition, IntentTypeEnum, ModuleNodeOutline, ModuleOutline } from './utils/ai/ai-utils';
-import express from "express";
+import { calculateTokens4o_mini, commandDecomposition, commandTypeEnum, createModule, createModuleFromOutline, generateModuleOutlineResponse, insertModuleNode, intentDecomposition, IntentTypeEnum, ModuleNodeOutline } from './utils/ai/ai-utils';
 import { ChatCompletionMessageParam } from 'openai/resources';
-import { copy } from '@vercel/blob';
 import { serializeTuple } from './socketServer';
 import moduleController from './controllers/moduleController';
 import { getContext } from './utils/context';
-import { chunkAndEmbedFile } from './utils/documentProcessor';
-import documentController from "./controllers/documentController";
-import { error } from 'console';
 
 enum MessageType {
   Standard = "standard",
@@ -131,13 +122,13 @@ class AISocketHandler {
       
               const result = await moduleController.createModuleCallback(moduleOutlineData.name, moduleOutlineData.description, workspaceId);
               const rootNode = result.moduleId;
-      
+
               await Promise.all(
-                moduleOutlineData.moduleNodes.map(async (node: ModuleNodeOutline) => {
-                  await insertModuleNode(rootNode!, node, rootNode!);
+                moduleOutlineData.moduleNodes.map(async (node: ModuleNodeOutline, index: number) => {
+                  await insertModuleNode(rootNode!, node, rootNode!, index, 1);
                 })
               );
-              
+
               console.log("Module nodes of prev:", JSON.stringify(moduleOutlineData.moduleNodes, null, 2));
       
               await createModuleFromOutline(client, moduleOutlineData, result, workspaceId, rootNode!, subject, context_instructions, workspaceModulesBufferProxy, this.openai);
@@ -198,8 +189,8 @@ class AISocketHandler {
               const rootNode = result.moduleId;
             
               await Promise.all(
-                module.nodes.map(async (node: ModuleNodeOutline) => {
-                  await insertModuleNode(rootNode!, node, rootNode!);
+                module.nodes.map(async (node: ModuleNodeOutline, index: number) => {
+                  await insertModuleNode(rootNode!, node, rootNode!, index, 1);
                 })
               );
 
