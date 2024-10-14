@@ -19,6 +19,6 @@ const config: Config = {
 export default config;
 
 export const corsOptions = {
-  origin: process.env.ORIGIN, // Specify the client origin (TODO: change later in deployment)
+  origin: `https://${process.env.ORIGIN}`, // Specify the client origin (TODO: change later in deployment)
   credentials: true, // Allow credentials (cookies, etc.)
 };
