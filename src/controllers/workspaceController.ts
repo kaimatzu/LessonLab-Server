@@ -109,20 +109,13 @@ class WorkspaceController {
     try {
       const query = `
         SELECT 
-          m.WorkspaceID, 
-          m.WorkspaceName, 
-          m.UserID,
-          m.CreatedAt,
-          CASE 
-            WHEN l.WorkspaceID IS NOT NULL THEN 'LESSON'
-            WHEN q.WorkspaceID IS NOT NULL THEN 'QUIZ'
-            ELSE 'UNKNOWN'
-          END AS WorkspaceType
-        FROM Workspaces m
-        LEFT JOIN Lessons l ON m.WorkspaceID = l.WorkspaceID
-        LEFT JOIN Quizzes q ON m.WorkspaceID = q.WorkspaceID
-        WHERE m.UserID = ?
-        ORDER BY m.CreatedAt DESC
+          WorkspaceID, 
+          WorkspaceName, 
+          UserID,
+          CreatedAt
+        FROM Workspaces
+        WHERE UserID = ?
+        ORDER BY CreatedAt DESC
       `;
 
       const rows: any = await connection.execute(query, [decoded.userId]).catch(error => {
