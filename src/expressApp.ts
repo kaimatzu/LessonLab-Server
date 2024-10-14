@@ -22,6 +22,7 @@ class ExpressApp {
     app.use(cors(corsOptions));
     app.use(cookieParser());
     app.use(bodyParser.json());
+    app.set("trust proxy", 1);
 
     app.use("/api/assistant", assistantRoutes);
     app.use("/api/documents", documentRoutes);

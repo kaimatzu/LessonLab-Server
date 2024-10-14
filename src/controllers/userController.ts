@@ -48,14 +48,14 @@ class UsersController {
       res.cookie('authToken', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: TOKEN_MAX_AGE,
         domain: process.env.ORIGIN
       });
 
       res.cookie('autoLoginToken', true, {
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: TOKEN_MAX_AGE,
         domain: process.env.ORIGIN
       });
@@ -111,14 +111,14 @@ class UsersController {
       res.cookie('authToken', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: TOKEN_MAX_AGE,
         domain: process.env.ORIGIN
       });
 
       res.cookie('autoLoginToken', true, {
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: TOKEN_MAX_AGE,
         domain: process.env.ORIGIN
       });
@@ -264,7 +264,7 @@ class UsersController {
 
   async logout(req: Request, res: Response) {
     const cookies = new Cookies(req, res);
-    cookies.set('authToken', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', expires: new Date(0) });
+    cookies.set('authToken', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'none', expires: new Date(0) });
 
     res.status(200).json({ message: 'Logged out successfully' });
   }
