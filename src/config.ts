@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import * as process from "node:process";
 dotenv.config();
 
 interface Config {
@@ -19,6 +20,6 @@ const config: Config = {
 export default config;
 
 export const corsOptions = {
-  origin: `https://${process.env.ORIGIN}`, // Specify the client origin (TODO: change later in deployment)
+  origin: `${process.env.PROTOCOL}://${process.env.ORIGIN}${process.env.ORIGIN === 'localhost' ? ':4000' : ''}`,
   credentials: true, // Allow credentials (cookies, etc.)
 };

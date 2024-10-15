@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
-import fs from 'fs'; // Import the fs module to read the CA certificate
+import fs from 'fs';
+import * as process from "node:process"; // Import the fs module to read the CA certificate
 
 dotenv.config();
 
@@ -13,19 +14,23 @@ export async function getDbConnection() {
     // Read the CA certificate from the environment or a fixed path
     const ca = process.env.CA_CERT ? fs.readFileSync(process.env.CA_CERT) : undefined;
 
-    const connection = await mysql.createConnection({
+    let sslOptions = undefined;
+
+    if (process.env.HOST !== 'localhost') {
+      sslOptions = {
+        rejectUnauthorized: true, // Ensure that the server certificate is verified
+        ca: ca // Include the CA certificate
+      }
+    }
+
+    return await mysql.createConnection({
       host: process.env.HOST,
       port: port,
       user: process.env.DBUSER,
       password: process.env.PASSWORD,
       database: process.env.DATABASE,
-      ssl: {
-        rejectUnauthorized: true, // Ensure that the server certificate is verified
-        ca: ca // Include the CA certificate
-      }
+      ssl: sslOptions,
     });
-
-    return connection;
   } catch (error) {
     console.error('Error creating DB connection:', error);
     throw new Error('DB connection error');
