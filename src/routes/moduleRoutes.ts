@@ -14,5 +14,6 @@ router.get('/recursive-subtree/:moduleId/:moduleNodeId', moduleController.getSub
 router.patch('/update/node/content', moduleController.updateModuleNodeContent);
 router.patch('/update/node/title', moduleController.updateModuleNodeTitle);
 router.delete('/delete/node/:moduleNodeId', moduleController.deleteModuleNode);
+router.patch('/transfer/node', moduleController.transferSubtree);
 
 export default router;
