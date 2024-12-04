@@ -5,6 +5,7 @@ exports
 node_modules/
 dist/
 
+.idea
 .vscode
 load.load
 certificate.pem
