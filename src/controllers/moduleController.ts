@@ -20,8 +20,8 @@ class ModuleController {
     this.getSubtreeRecursively = this.getSubtreeRecursively.bind(this);
     this.updateModuleNodeContent = this.updateModuleNodeContent.bind(this);
     this.updateModuleNodeContentCallback = this.updateModuleNodeContentCallback.bind(this);
-    this.updateModuleNodeTitle = this.updateModuleNodeTitle.bind(this);
-    this.updateModuleNodeTitleCallback = this.updateModuleNodeTitleCallback.bind(this);
+    this.updateModuleNodeName = this.updateModuleNodeName.bind(this);
+    this.updateModuleNodeNameCallback = this.updateModuleNodeNameCallback.bind(this);
     this.deleteModuleNode = this.deleteModuleNode.bind(this);
     this.deleteModuleNodeCallback = this.deleteModuleNodeCallback.bind(this);
     this.transferSubtree = this.transferSubtree.bind(this);
@@ -30,7 +30,7 @@ class ModuleController {
   /**
    * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
    *
-   * @param req The request object, expected to contain the pageId, new title, and the lessonId.
+   * @param req The request object, expected to contain the pageId, new name, and the lessonId.
    * @param res The response object.
    */
   async createModule(req: Request, res: Response) {
@@ -66,7 +66,7 @@ class ModuleController {
 
       // Create a root module node or initial structure
       await connection.execute(
-          'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+          'INSERT INTO module_ModuleNodes (ModuleNodeID, Name, Content, ModuleID) VALUES (?, ?, ?, ?)',
           [moduleId, '', '', moduleId]
       );
 
@@ -104,7 +104,7 @@ class ModuleController {
 
       // Create a root module node or initial structure
       await connection.execute(
-          'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
+          'INSERT INTO module_ModuleNodes (ModuleNodeID, Name, Content, ModuleID) VALUES (?, ?, ?, ?)',
           [moduleId, '', '', moduleId]
       );
 
@@ -270,7 +270,7 @@ class ModuleController {
   /**
    * Inserts a new child node under a specific module node.
    *
-   * @param req The request object, expected to contain the parent node ID, module ID, content, and title.
+   * @param req The request object, expected to contain the parent node ID, module ID, content, and name.
    * @param res The response object.
    */
   async insertChildToModuleNode(req: Request, res: Response) {
@@ -278,7 +278,7 @@ class ModuleController {
       return res.status(405).json({message: 'Method Not Allowed'});
     }
 
-    const {parentNodeId, moduleId, content, title} = req.body;
+    const {parentNodeId, moduleId, content, name} = req.body;
     if (!parentNodeId || !moduleId) {
       return res.status(400).json({message: 'Parent Node ID and Module ID are required'});
     }
@@ -304,8 +304,8 @@ class ModuleController {
 
       // Insert new module node as a child
       await connection.execute(
-          'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
-          [moduleNodeID, title, content, moduleId]
+          'INSERT INTO module_ModuleNodes (ModuleNodeID, Name, Content, ModuleID) VALUES (?, ?, ?, ?)',
+          [moduleNodeID, name, content, moduleId]
       );
 
       // Calculate the new position as the count of current siblings
@@ -350,9 +350,9 @@ class ModuleController {
    * @param parentNodeId The parent/ancestor of the new node to be inserted.
    * @param moduleId The Module to insert the node in.
    * @param content The node's content.
-   * @param title The node's title.
+   * @param name The node's name.
    */
-  async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, title: string, position: number, depth: number) {
+  async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, name: string, position: number, depth: number) {
     try {
       const connection = await getDbConnection();
 
@@ -374,8 +374,8 @@ class ModuleController {
 
       // Insert new module node as a child
       await connection.execute(
-          'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
-          [moduleNodeID, title, content, moduleId]
+          'INSERT INTO module_ModuleNodes (ModuleNodeID, Name, Content, ModuleID) VALUES (?, ?, ?, ?)',
+          [moduleNodeID, name, content, moduleId]
       );
 
       // Perform the insert
@@ -463,7 +463,7 @@ class ModuleController {
         const [rows]: any[] = await connection.execute(
             `SELECT 
             mc.*, 
-            mn.Title, 
+            mn.Name, 
             mn.Content
           FROM 
             module_ModuleClosureTable mc
@@ -667,61 +667,61 @@ class ModuleController {
   }
 
   /**
-   * Updates the title of a module node.
+   * Updates the name of a module node.
    *
-   * @param req The request object, expected to contain the module node ID and new title.
+   * @param req The request object, expected to contain the module node ID and new name.
    * @param res The response object.
    */
-  async updateModuleNodeTitle(req: Request, res: Response) {
+  async updateModuleNodeName(req: Request, res: Response) {
     if (req.method !== 'PATCH') {
       return res.status(405).json({message: 'Method Not Allowed'});
     }
 
-    const {moduleNodeId, title} = req.body;
-    console.log("Module data", moduleNodeId, title);
+    const {moduleNodeId, name} = req.body;
+    console.log("Module data", moduleNodeId, name);
 
-    if (!moduleNodeId || !title) {
-      return res.status(400).json({message: 'Module Node ID and title are required'});
+    if (!moduleNodeId || !name) {
+      return res.status(400).json({message: 'Module Node ID and name are required'});
     }
 
     try {
       const connection = await getDbConnection();
 
-      // Update title in the module node
+      // Update name in the module node
       await connection.execute(
-          'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
-          [title, moduleNodeId]
+          'UPDATE module_ModuleNodes SET Name = ? WHERE ModuleNodeID = ?',
+          [name, moduleNodeId]
       );
 
       await connection.end();
-      return res.status(200).json({message: 'Module node title updated successfully'});
+      return res.status(200).json({message: 'Module node name updated successfully'});
     } catch (error) {
-      console.error('Error updating module node title:', error);
+      console.error('Error updating module node name:', error);
       return res.status(500).json({message: 'Internal Server Error'});
     }
   }
 
   /**
-   * Updates the title of a module node.
+   * Updates the name of a module node.
    * Meant for internal server use and not exposed to the user API routes.
    *
    * @param moduleNodeId The ID of the module node to update.
-   * @param title The new title for the module node.
+   * @param name The new name for the module node.
    */
-  async updateModuleNodeTitleCallback(moduleNodeId: string, title: string) {
+  async updateModuleNodeNameCallback(moduleNodeId: string, name: string) {
     try {
       const connection = await getDbConnection();
 
-      // Update title in the module node
+      // Update name in the module node
       await connection.execute(
-          'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
-          [title, moduleNodeId]
+          'UPDATE module_ModuleNodes SET Name = ? WHERE ModuleNodeID = ?',
+          [name, moduleNodeId]
       );
 
       await connection.end();
-      return {message: 'Module node title updated successfully'};
+      return {message: 'Module node name updated successfully'};
     } catch (error) {
-      console.error('Error updating module node title:', error);
+      console.error('Error updating module node name:', error);
       return {message: 'Internal Server Error'};
     }
   }

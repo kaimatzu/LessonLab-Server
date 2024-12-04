@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { Server as SocketIO } from 'socket.io';
 
 import {encoding_for_model} from "tiktoken";
 import {z} from "zod";
@@ -13,14 +14,19 @@ import {ChatCompletionMessageParam} from 'openai/resources';
 import documentController from '../../controllers/documentController';
 import {chunkAndEmbedFile} from '../documentProcessor';
 
+import {Result} from '../../types/result';
+
 import {
   ChatCompletionEvents,
-  Client,
+  Client, ClientOptions, EmitEvents, EventsMap, ListenEvents, MessageType,
   Module,
   ModuleNode,
   WorkspaceModuleKey,
   WorkspaceModulesProxy,
 } from '../../types/globals';
+import assistantController from "../../controllers/assistantController";
+import {ChatCompletionSnapshot} from "openai/lib/ChatCompletionStream";
+import {DefaultEventsMap} from "socket.io/dist/typed-events";
 
 //////////////////////////////////////
 /// AI Response format definitions ///
@@ -73,16 +79,16 @@ export interface ModuleOutline {
 
 export interface ModuleNodeOutline {
   id?: string;
-  title: string;
+  name: string;
   description: string;
   children?: ModuleNodeOutline[];
 }
 
 export const ModuleNodeOutlineSchema: z.ZodSchema<ModuleNodeOutline> = z.lazy(() =>
   z.object({
-    title: z
+    name: z
       .string()
-      .describe("The title of the node, representing a section, sub-section, or sub-subsection within the module."),
+      .describe("The name of the node, representing a section, sub-section, or sub-subsection within the module."),
     description: z
       .string()
       .describe("A brief description of the node's content, explaining the focus of the section or sub-section."),
@@ -127,24 +133,24 @@ export async function calculateTokens4o(message: string | undefined | null): Pro
 /// User Input Processing Pipeline ///
 //////////////////////////////////////
 
-export async function intentDecomposition(openai: OpenAI, message: string): 
-  Promise<ParsedChatCompletionMessage<{[x: string]: any;}>> 
-{
+export async function intentDecomposition(openai: OpenAI, message: string):
+    Promise<Result<ParsedChatCompletionMessage<{[x: string]: any;}>>> {
+
   try {
-    const intentDecompositionSystemPrompt = 
-`You are an AI agent that's part of a user input processing pipeline who's main task is to decompose the intent of the user. Given the prompt of the user, decompose the user's input into it's subject matter, and the intent type of the prompt in the required format, and the context instructions if applicable.
+    const intentDecompositionSystemPrompt =
+        `You are an AI agent that's part of a user input processing pipeline whose main task is to decompose the intent of the user. Given the prompt of the user, decompose the user's input into its subject matter, the intent type of the prompt in the required format, and the context instructions if applicable.
 
 Information on the intent types are below.
 
 Context instructions are required:
 - query: The user's intent is a query type. The user is asking a question or wishes to acquire information.
-- command: The user's intent is a command. The user is asking you, the system to perform a task.
-- informative: The user's intent is informational. This means that the user is trying to inform you, the system, a piece of context or information.
+- command: The user's intent is a command. The user is asking you, the system, to perform a task.
+- informative: The user's intent is informational. This means that the user is trying to inform you, the system, of a piece of context or information.
 
 No context instructions (output as "none"):
 - conversational: The user is greeting the system, or there is no intrinsic subject or topic within the user's prompt.
 - miscellaneous: If the user is prompting nonsensical inputs, just output the subject matter as "none" and the intent type as "miscellaneous".`;
-      
+
     const intentDecompositionCompletion = await openai.beta.chat.completions.parse({
       model: "gpt-4o-mini",
       messages: [
@@ -153,14 +159,16 @@ No context instructions (output as "none"):
       ],
       response_format: zodResponseFormat(IntentProcessingSchema, "intent-processing"),
     });
-    
+
     const parsedIntentValues = intentDecompositionCompletion.choices[0].message;
 
-    if (!parsedIntentValues) throw new Error("No intent decomposition completion generated.");
+    if (!parsedIntentValues) {
+      return Result.err(new Error("No intent decomposition completion generated.")); // Return Result with error
+    }
 
-    return parsedIntentValues;
+    return Result.ok(parsedIntentValues); // Return Result with the parsed values
   } catch (error) {
-    throw new Error(`Intent decomposition error: ${error}`);
+    return Result.err(new Error(`Intent decomposition error: ${error}`)); // Return Result with the caught error
   }
 }
 
@@ -204,7 +212,7 @@ Information on command types:
 export async function insertModuleNode(moduleId: string, nodes: ModuleNodeOutline, ancestor: string, position: number = 0, depth: number = 1) {
   try {
     // Insert the current node with its depth and position
-    await moduleController.insertChildToModuleNodeCallback(ancestor, moduleId, nodes.id!, '', nodes.title, position, depth);
+    await moduleController.insertChildToModuleNodeCallback(ancestor, moduleId, nodes.id!, '', nodes.name, position, depth);
 
     // If there are no children, return
     if (!nodes.children || nodes.children.length === 0) return;
@@ -256,7 +264,7 @@ export async function createModule(client: Client, moduleId: string, workspaceId
               moduleId,
               node.id,
               workspaceId,
-              node.title,
+              node.name,
               node.description,
               subject,
               context_instructions,
@@ -301,7 +309,7 @@ export async function createModuleFromOutline(client: Client, moduleOutlineData:
             return {
               id: nodeOutline.id!,
               parent: parentId,
-              title: nodeOutline.title,
+              name: nodeOutline.name,
               content: '', 
               description: nodeOutline.description,
               children: nodeOutline.children
@@ -337,7 +345,7 @@ export async function createModuleFromOutline(client: Client, moduleOutlineData:
                 moduleId,
                 node.id,
                 workspaceId,
-                node.title,
+                node.name,
                 node.description,
                 subject,
                 context_instructions,
@@ -368,7 +376,7 @@ export async function createModuleFromOutline(client: Client, moduleOutlineData:
   });
 }
 
-export async function generateModuleNodeContent(moduleId: string, moduleNodeId: string, workspaceId: string, title: string, description: string, subject: string, context_instructions: string, workspaceModulesBufferProxy: WorkspaceModulesProxy, openai: OpenAI) {
+export async function generateModuleNodeContent(moduleId: string, moduleNodeId: string, workspaceId: string, name: string, description: string, subject: string, context_instructions: string, workspaceModulesBufferProxy: WorkspaceModulesProxy, openai: OpenAI) {
   const tupleKey: WorkspaceModuleKey = [moduleId, workspaceId];
   const serializedKey = serializeTuple(tupleKey);
 
@@ -380,7 +388,7 @@ export async function generateModuleNodeContent(moduleId: string, moduleNodeId: 
   Here is the metadata for the module:
 
   Subject: ${subject}
-  Module Title: ${title}
+  Module Name: ${name}
   Description: ${description}
 
   Consider the following context instructions inferred by the previous processes within the pipeline:
@@ -566,4 +574,72 @@ export async function generateModuleOutlineResponse(openai: any,
   console.log("Module outline:", createModuleCompletion.parsed);
 
   return createModuleCompletion.parsed as ModuleOutline;
+}
+
+//////////////////////////////////////
+/////////// Miscellaneous ////////////
+//////////////////////////////////////
+
+export async function generateDirective(client: Client, messageType: MessageType, workspaceId: string, role: "user" | "assistant", directive: string): Promise<Result<void>> {
+  return new Promise<Result<void>>(async (resolve, reject) => {
+    const assistantMessageId = uuid();
+
+    client.emit('initialize-assistant-message', assistantMessageId, messageType, workspaceId, async ({ ack }) => {
+      console.log("Ack user message: ", ack);
+      if (ack !== 'success') {
+        reject(Result.err(new Error(`Error processing pipeline: Failed to create message.`)));
+        return; // Early return
+      }
+
+      client.emit('finalContent', directive, assistantMessageId, workspaceId);
+
+      const insertResult = await assistantController.insertChatHistory(
+          {
+            role: role,
+            content: directive,
+          },
+          assistantMessageId,
+          messageType,
+          workspaceId
+      );
+
+      if (insertResult.isError()) {
+        reject(Result.err(new Error(`Error generating directive: ${insertResult.error}`)));
+      }
+
+      resolve(Result.ok(undefined));
+    });
+  });
+}
+
+//////////////////////////////////////
+////// Pipeline Synchronization //////
+//////////////////////////////////////
+
+/**
+ * Wait for a specific event from the Socket.IO server.
+ * @param {SocketIO} io - SocketIO connection object.
+ * @param {keyof EmitEvents} event - The event type to listen for.
+ * @returns {Promise<Result<T>>} - A promise that resolves with the event data wrapped in Result.
+ */
+export async function waitForSocketEvent<T>(io: Client, event: keyof EventsMap): Promise<Result<T>> {
+  return new Promise<Result<T>>((resolve, reject) => {
+    console.log("Waiting for event: ", event);
+    // Define the listener function
+    const listener = (data: T) => {
+      clearTimeout(timeout); // Clear the timeout when the event occurs
+      io.off(event, listener); // Remove the listener
+      console.log("Got event: ", event);
+      resolve(Result.ok(data)); // Wrap the resolved data in Result.ok
+    };
+
+    // Implement a timeout to reject the promise if the event doesn't occur
+    const timeout = setTimeout(() => {
+      io.off(event, listener); // Remove the listener if timeout occurs
+      reject(Result.err(new Error(`Timeout waiting for event: ${event}`))); // Wrap the timeout error in Result.err
+    }, 5000); // Wait for 5 seconds
+
+    // Attach the listener
+    io.once(event, listener);
+  });
 }

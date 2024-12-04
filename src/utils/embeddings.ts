@@ -2,31 +2,34 @@
 
 import OpenAI from "openai";
 import config from "../config";
+import { Result } from '../types/result';
+import {Embedding} from "openai/resources";
 
 /**
  * Embed a piece of text using an embedding model or service.
  * This is a placeholder and needs to be implemented based on your embedding solution.
  *
- * @param text The text to embed.
+ * @param chunks The text to embed.
  * @returns The embedded representation of the text.
  */
-export async function embedChunks(chunks: string[]): Promise<any> {
-  // You can use any embedding model or service here.
-  // In this example, we use OpenAI's text-embedding-3-small model.
+export async function embedChunks(chunks: string[]): Promise<Result<Embedding[]>> {
   const openai = new OpenAI({
     apiKey: config.openAiApiKey,
     organization: config.openAiOrganizationId,
   });
-  try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: chunks,
-      encoding_format: "float",
-      dimensions: 1536,
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error embedding text with OpenAI:", error);
-    throw error;
-  }
+
+  return new Promise<Result<Embedding[]>>(async (resolve, reject) => {
+    try {
+      const response = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: chunks,
+        encoding_format: "float",
+        dimensions: 1536,
+      });
+
+      resolve(Result.ok(response.data)); // Wrap the successful response in Result.ok
+    } catch (error) {
+      reject(Result.err(new Error(`Error embedding text: ${error}`))); // Wrap the error in Result.err
+    }
+  });
 }

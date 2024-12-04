@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { getDbConnection } from "../utils/storage/database";
 import jwt from 'jsonwebtoken';
 import { Message } from '../types/globals';
+import { Result } from '../types/result';
 
 class AssistantController {
 
@@ -60,20 +61,23 @@ class AssistantController {
    *
    * @param message - The message object.
    * @param messageId - The message ID.
+   * @param messageType - The message type.
    * @param workspaceID - The workspace's ID to insert the chat history to.
-   * @returns A promise that resolves to the operation's status or rejects with an error.
+   * @returns A Result wrapping a Promise that resolves to the operation's status or rejects with an error.
    */
-  async insertChatHistory(message: Message, messageId: string, messageType: string, workspaceID: string): Promise<void> {
+  async insertChatHistory(message: Message, messageId: string, messageType: string, workspaceID: string): Promise<Result<void>> {
     try {
       const connection = await getDbConnection();
       await connection.execute(
-        'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `Type`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)', 
-        [messageId, message.content, message.role, messageType, workspaceID]
+          'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `Type`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)',
+          [messageId, message.content, message.role, messageType, workspaceID]
       );
 
       await connection.end();
+
+      return Result.ok(undefined); // Return Result<void>
     } catch (error) {
-      throw new Error('Failed to insert chat history: ' + error);
+      return Result.err(new Error('Failed to insert chat history: ' + error));
     }
   }
 

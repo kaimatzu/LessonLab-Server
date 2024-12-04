@@ -6,5 +6,6 @@ node_modules/
 dist/
 
 .vscode
+.idea
 load.load
 certificate.pem

@@ -16,68 +16,6 @@ import { OpenAIError } from 'openai/error';
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 /*
- * Custom Error Handling to 'fix' try catch hell in Javascript/Typescript. Errors should be values.
- */
-
-export type ResultType<T> =
-    | { success: true; value: T }
-    | { success: false; error: Error };
-
-export class Result<T> {
-  private constructor(private readonly result: ResultType<T>) {}
-
-  static ok<T>(value: T): Result<T> {
-    return new Result<T>({ success: true, value });
-  }
-
-  static err<T>(error: Error): Result<T> {
-    return new Result<T>({ success: false, error });
-  }
-
-  isSuccess(): this is { result: { success: true; value: T } } {
-    return this.result.success;
-  }
-
-  isError(): this is { result: { success: false; error: Error } } {
-    return !this.result.success;
-  }
-
-  map<U>(fn: (value: T) => U): Result<U> {
-    if (this.result.success) {
-      return Result.ok(fn(this.result.value));
-    } else {
-      return Result.err<U>(this.result.error);
-    }
-  }
-
-  flatMap<U>(fn: (value: T) => Result<U>): Result<U> {
-    if (this.result.success) {
-      return fn(this.result.value);
-    } else {
-      return Result.err<U>(this.result.error);
-    }
-  }
-
-  unwrap(): T {
-    if (this.result.success) {
-      return this.result.value;
-    } else {
-      throw new Error(
-          "Called unwrap on an error result: " + this.result.error.message
-      );
-    }
-  }
-
-  unwrapOr(defaultValue: T): T {
-    return this.result.success ? this.result.value : defaultValue;
-  }
-
-  unwrapOrElse(fn: (error: Error) => T): T {
-    return this.result.success ? this.result.value : fn(this.result.error);
-  }
-}
-
-/*
  * Server Type definitions
  */
 
@@ -109,6 +47,7 @@ export interface EventsMap {
   'set-options'(options: Omit<ClientOptions, 'currentChatStream'>): void;
   'debug-log'(message: string): void;
   'end-sequence'(workspaceId: string): void;
+  'confirm-assistant-message-complete'(assistantMessageId): void;
   abort: () => void;
   // Pipeline events handling
   'directive-ready'(...args: [assistantMessageId: string, workspaceId: string, ...any[]]): any; // In case we want to supply more data into the directive callbacks
@@ -133,7 +72,7 @@ export interface ChatCompletionEvents {
   functionCall: (functionCall: ChatCompletionMessage.FunctionCall, workspaceId: string) => void;
   message: (message: Message, workspaceId: string) => void;
   chatCompletion: (completion: ChatCompletion, workspaceId: string) => void;
-  finalContent: (contentSnapshot: string, workspaceId: string) => void;
+  finalContent: (contentSnapshot: string, assistantMessageId: string, workspaceId: string) => void;
   finalMessage: (message: Message, workspaceId: string) => void;
   finalChatCompletion: (completion: ChatCompletion, workspaceId: string) => void;
   finalFunctionCall: (functionCall: ChatCompletionMessage.FunctionCall, workspaceId: string) => void;

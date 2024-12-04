@@ -90,7 +90,13 @@ async function chunkAndEmbedFile(
     const chunks = chunkTextByMultiParagraphs(content);
 
     // Embed the chunks using the embedChunks function
-    const embeddings = await embedChunks(chunks);
+    const embeddingsResult = await embedChunks(chunks);
+    if (embeddingsResult.isError()) {
+      console.error("Error embedding chunk data:", embeddingsResult.error);
+      throw new Error("Failed to embed chunk data");
+    }
+
+    const embeddings = embeddingsResult.unwrap();
 
     // Combine the chunks and their corresponding embeddings
     // Construct the id prefix using the documentId and the chunk index
@@ -109,6 +115,7 @@ async function chunkAndEmbedFile(
     throw error;
   }
 }
+
 /**
  * Splits a given text into chunks of 1 to many paragraphs.
  *
