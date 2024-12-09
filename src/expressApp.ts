@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Express, Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import cookieParser from 'cookie-parser';
@@ -16,13 +16,19 @@ import { corsOptions } from "./config";
 
 class ExpressApp {
 
-  constructor(
-    public app = express(),
-  ) {
+  constructor(public app = express()) {
     app.use(cors(corsOptions));
     app.use(cookieParser());
     app.use(bodyParser.json());
     app.set("trust proxy", 1);
+
+    // Route logger middleware
+    const logRoute = (req: Request, res: Response, next: NextFunction) => {
+      console.log(`>>> Incoming request to ${req.originalUrl}`)
+      next()
+    }
+
+    app.use(logRoute);
 
     app.use("/api/assistant", assistantRoutes);
     app.use("/api/documents", documentRoutes);
