@@ -12,6 +12,7 @@ import workspaceRoutes from "./routes/workspaceRoutes";
 import moduleRoutes from "./routes/moduleRoutes";
 import transactionRoutes from "./routes/transactionRoutes";
 import exportRoutes from "./routes/exportRoutes";
+import assessmentRoutes from "./routes/assessmentRoutes";
 import { corsOptions } from "./config";
 
 class ExpressApp {
@@ -38,6 +39,7 @@ class ExpressApp {
     app.use('/api/workspaces/modules', moduleRoutes);
     app.use('/api/transactions', transactionRoutes)
     app.use('/api/exports', exportRoutes)
+    app.use('/api/assessments', assessmentRoutes)
   }
 }
 
