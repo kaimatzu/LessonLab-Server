@@ -26,6 +26,7 @@ class ModuleController {
     this.deleteModuleNodeCallback = this.deleteModuleNodeCallback.bind(this);
   }
 
+  // #region createModule
   /**
   * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
   * 
@@ -82,6 +83,7 @@ class ModuleController {
     }
   }
 
+  // #region createModuleCallback
   /**
   * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
   * Meant for internal server use and not exposed to the user API routes.
@@ -120,6 +122,7 @@ class ModuleController {
     }
   }
 
+  // #region getModules
   /**
   * Fetches all modules of a workspace.
   * 
@@ -164,6 +167,7 @@ class ModuleController {
     }
   }
 
+  // #region updateModuleName
   /**
    * Updates the name of a module in a workspace.
    *
@@ -215,6 +219,7 @@ class ModuleController {
     }
   }
 
+  // #region deleteModule
   /**
    * Deletes a module from a workspace.
    *
@@ -266,6 +271,7 @@ class ModuleController {
     }
   }
 
+  // #region insertChildToModuleNode
   /**
   * Inserts a new child node under a specific module node.
   * 
@@ -342,6 +348,7 @@ class ModuleController {
     }
   }
 
+  // #region insertChildToModuleNodeCallback
   /**
   * Inserts a new child node under a specific module node.
   * Meant for internal server use and not exposed to the user API routes.
@@ -392,6 +399,7 @@ class ModuleController {
     }
   }
 
+  // #region buildFullTree
   /**
   * Builds a hierarchical tree from a flat array of node relationships.
   * @param nodes - Flat array of nodes from the database.
@@ -422,6 +430,7 @@ class ModuleController {
     return nodeMap;
   }
 
+  // #region getModuleTree
   /**
   * Fetches the entire module tree structure via fetching and building the entire tree.
   * 
@@ -499,6 +508,7 @@ class ModuleController {
     }
   }
 
+  // #region getSubtree
   /**
   * Fetches the subtree via fetching and building the entire tree first, 
   * and then returning the subtree of the specified part. This is faster in the
@@ -537,6 +547,7 @@ class ModuleController {
     }
   }
 
+  // #region fetchChildren
   /**
   * Recursively fetches the children of a given module node from the module closure table.
   * This function traverses all descendants of a specified parent node, building a hierarchical tree structure.
@@ -572,6 +583,7 @@ class ModuleController {
     return children[0];
   }
 
+  // #region getSubtreeRecursively
   /**
   * Fetches the tree or subtree starting from a specific node recursively.
   * This function is very situational is usage as it is slower than the former 
@@ -611,6 +623,7 @@ class ModuleController {
     }
   }
 
+  // #region updateModuleNodeContent
   /**
   * Updates the content of a module node.
   * 
@@ -644,6 +657,7 @@ class ModuleController {
     }
   }
 
+  // #region updateModuleNodeContentCallback
   /**
   * Updates the content of a module node.
   * Meant for internal server use and not exposed to the user API routes.
@@ -669,6 +683,7 @@ class ModuleController {
     }
   }
 
+  // #region updateModuleNodeTitle
   /**
   * Updates the title of a module node.
   * 
@@ -704,6 +719,7 @@ class ModuleController {
     }
   }
 
+  // #region updateModuleNodeTitleCallback 
   /**
   * Updates the title of a module node.
   * Meant for internal server use and not exposed to the user API routes.
@@ -729,6 +745,7 @@ class ModuleController {
     }
   }
 
+  // #region deleteModuleNode
   /**
    * Deletes a module node and updates positions of other nodes.
    *
@@ -780,6 +797,7 @@ class ModuleController {
     }
   }
 
+  // #region deleteModuleNodeCallback
   /**
   * Deletes a module node.
   * Meant for internal server use and not exposed to the user API routes.
