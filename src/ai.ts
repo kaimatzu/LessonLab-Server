@@ -298,35 +298,37 @@ class AISocketHandler {
               }
             });
   
-          } 
+          }
+          else {
+            console.log(context)
+            const systemPrompt =
+              `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied , ust answer normally based on your available knowledge. Otherwise, base your response on the information within the context block.
+
+              subject: ${intentDecompositionCompletion.parsed.subject}
+              context_instructions: ${intentDecompositionCompletion.parsed.context_instructions}
+      
+              CONTEXT INFORMATION BLOCK:
+              ---
+              ${context}
+              ---
+              `;
+
+            const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
+
+            try {
+              await this.processNewMessage(
+                  client,
+                  systemPromptParam,
+                  workspaceId,
+                  chatHistory,
+                  userTokens);
+            } catch(error){
+              console.error("Error generating query response:", error);
+              throw error;
+            }
+          }
         } catch (error) {
           console.error("Error getting context:", error);
-          throw error;
-        }
-        
-        const systemPrompt = 
-        `You are an AI agent that's answers the user's query. You will be given relevant context information from a RAG pipeline in regards to the query. If no context information is supplied , ust answer normally based on your available knowledge. Otherwise, base your response on the information within the context block.
-
-        subject: ${intentDecompositionCompletion.parsed.subject}
-        context_instructions: ${intentDecompositionCompletion.parsed.context_instructions}
-
-        CONTEXT INFORMATION BLOCK:
-        ---
-        ${context}
-        ---
-        `;
-                  
-        const systemPromptParam = [{ role: 'system', content: systemPrompt }] as ChatCompletionMessageParam[];
-
-        try {
-          await this.processNewMessage(
-            client,
-            systemPromptParam,
-            workspaceId, 
-            chatHistory, 
-            userTokens);
-        } catch(error){
-          console.error("Error generating query response:", error);
           throw error;
         }
         break;
