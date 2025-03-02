@@ -7,7 +7,7 @@ export const getContext = async (
   message: string,
   namespace: string,
   maxCharacters = 5000,
-  minScore = 0.5,
+  minScore = 0.4,
   getOnlyText = true
 ): Promise<string | ScoredPineconeRecord[]> => {
   try {
