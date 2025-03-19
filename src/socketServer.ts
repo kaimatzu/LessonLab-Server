@@ -17,6 +17,8 @@ import {
   WorkspaceModulesProxy,
 } from './types/globals';
 import AISocketHandler from './ai';
+import { getDbConnection } from './utils/storage/database';
+import { chargeUserByModuleId, chargeUserByWorkspaceId } from './utils/charge';
 
 
 
@@ -59,9 +61,14 @@ class SocketServer {
   public socketEmitMessageBufferHandler = (io: SocketIO) => ({
     get(target: WorkspaceMessagesBuffer, prop: string) {
       if (prop === 'emit') {
-        return (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
+        return async (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
           const [assistantMessageId, workspaceId] = deserializeTuple(serializedKey);
-          
+
+          const connection = await getDbConnection()
+          chargeUserByWorkspaceId(connection, '--------', workspaceId)
+          console.log('>>> message emit get')
+          await connection.end()
+
           if (event === 'initialize-assistant-message') {
             console.log("Emitting event: ", event, ...args);
           } else { // Hacky bandaid fix for weird callback behavior via proxy. Do not modify until socket.io is patched. 
@@ -80,12 +87,17 @@ class SocketServer {
       // Override default callback for `set`.
       const callback = Reflect.get(target, prop);
       if (prop === 'set' && typeof callback === 'function') {
-        return (serializedKey: string, content: WorkspaceMessageValue) => {
+        return async (serializedKey: string, content: WorkspaceMessageValue) => {
           const [assistantMessageId, workspaceId] = deserializeTuple(serializedKey);
-          
+
+          const connection = await getDbConnection()
+          chargeUserByWorkspaceId(connection, '-------', workspaceId)
+          console.log('>>> set get')
+          await connection.end()
+
           const result = callback.call(target, serializedKey, content);
 
-          const socket = io.in(workspaceId); 
+          const socket = io.in(workspaceId);
           if (socket) {
             socket.emit('content', content[0], content[1], assistantMessageId, workspaceId);
             // console.log(content)
@@ -96,7 +108,7 @@ class SocketServer {
       }
 
       // Handle other methods or properties
-      return typeof callback === 'function' ? callback.bind(target) : callback; 
+      return typeof callback === 'function' ? callback.bind(target) : callback;
     }
   });
 
@@ -105,11 +117,16 @@ class SocketServer {
    */
   public socketEmitModuleBufferHandler = (io: SocketIO) => ({
     get(target: WorkspaceModulesBuffer, prop: string) {
+      let contentCost = 0
       if (prop === 'emit') {
-        return (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
+        return async (serializedKey: string, event: keyof EmitEvents, ...args: any[]) => {
           const [moduleId, workspaceId] = deserializeTuple(serializedKey);
 
           // console.log("Key values in buffer handler", moduleId, workspaceId)
+          const connection = await getDbConnection()
+          chargeUserByWorkspaceId(connection, '-------', workspaceId)
+          console.log('>>> module emit')
+          await connection.end()
 
           const socket = io.in(workspaceId); // Get the socket room by workspaceId
           if (socket) {
@@ -117,28 +134,28 @@ class SocketServer {
           }
           if (event === 'update-module-node') {
             const [moduleId, moduleNodeId, workspaceId, contentDelta, contentSnapshot] = args as [
-              moduleId: string, 
-              moduleNodeId: string, 
-              workspaceId: string, 
-              contentDelta: string, 
+              moduleId: string,
+              moduleNodeId: string,
+              workspaceId: string,
+              contentDelta: string,
               contentSnapshot: string
             ];
-          
+
             // console.log("Serialized key in update buffer callback", serializedKey);
-          
+
             // Retrieve the module using Reflect.get(target, 'get')
             const getCallback = this.get(target, 'get');
             const module: Module = getCallback(serializedKey);
-          
+
             if (!module) {
               console.log("Serialized key:", serializedKey);
               console.error(`Module with id ${moduleId} not found in buffer.`);
               return;
             }
-          
+
             // console.log("Module node id inside callback:", moduleNodeId);
             // console.log("Module get inside callback:", JSON.stringify(module, null, 2));
-          
+
             // Recursive function to find the node by id
             const findNodeById = (nodes: ModuleNode[], nodeId: string): ModuleNode | null => {
               for (const node of nodes) {
@@ -154,21 +171,21 @@ class SocketServer {
               }
               return null;
             };
-          
+
             // Find the node recursively
             const moduleNode = findNodeById(module.nodes, moduleNodeId);
-          
+
             if (!moduleNode) {
               console.error(`Module node with id ${moduleNodeId} not found in module ${moduleId}.`);
               return;
             }
-          
+
             // console.log("Module node inside callback:", moduleNode);
-          
+
             // Update the content of the found module node
             moduleNode.content = contentSnapshot;
           }
-          
+
           if (event === 'end') {
             console.log("Deleting buffer item", serializedKey);
             const deleteCallback = this.get(target, 'delete');
@@ -177,7 +194,7 @@ class SocketServer {
           }
         };
       }
-      
+
       // Default callbacks (get, set, etc.)
       const callback = Reflect.get(target, prop);
       return typeof callback === 'function' ? callback.bind(target) : callback;
@@ -223,7 +240,6 @@ class SocketServer {
     this.io.on('connection', (client: Client) => {
       const { id } = client;
       const data = client.handshake.query['userId'];
-      
       console.log("Query data:", data);
 
       this.logger(`Client connected: ${id}`);
@@ -238,13 +254,13 @@ class SocketServer {
       });
 
       // client.join(data as string);
-      
+
       this.clients.set(id, client);
-      
-      client.on('join-room', (roomId) => client.join(roomId));
-      
+
+      client.on('join-room', (roomId) => client.join(roomId))
+
       client.on('leave-room', (roomId) => client.leave(roomId));
-      
+
       client.on('leave-all-rooms', () => {
         client.rooms.forEach((room) => {
           if (room !== client.id) {
@@ -253,11 +269,11 @@ class SocketServer {
           }
         });
       });
-      
-      client.on('send-data', (roomId) => {this.io.in(roomId).emit("message", roomId)})
-      
-      client.on('disconnecting', () => {});
-      
+
+      client.on('send-data', (roomId) => { this.io.in(roomId).emit("message", roomId) })
+
+      client.on('disconnecting', () => { });
+
       client.on('disconnect', () => {
         const { id } = client;
         this.clients.delete(id);
@@ -268,7 +284,19 @@ class SocketServer {
         });
         this.logger(`Client disconnected: ${id}`);
       });
-      
+
+      // Add handler for joining workspace room for token updates
+      client.on('join-room', (workspaceId) => {
+        client.join(workspaceId);
+        console.log(`Client ${client.id} joined workspace room ${workspaceId}`);
+      });
+
+      // Add handler for leaving workspace room
+      client.on('leave-room', (workspaceId) => {
+        client.leave(workspaceId);
+        console.log(`Client ${client.id} left workspace room ${workspaceId}`);
+      });
+
       new AISocketHandler(client, {
         verbose: false,
         chat: { model: 'gpt-4o-mini' },
@@ -276,9 +304,9 @@ class SocketServer {
           { role: 'system', content: 'You are a helpful assistant.' },
         ],
       },
-      // this.clients,
-      this.workspaceMessagesBufferProxy,
-      this.workspaceModulesBufferProxy,
+        // this.clients,
+        this.workspaceMessagesBufferProxy,
+        this.workspaceModulesBufferProxy,
       );
     });
   }
@@ -308,9 +336,9 @@ class SocketServer {
    * @param {string} message
    * @returns {void}
    */
-    logger(message: string): void {
-      console.debug(`[Socket] ${message}`);
-    }
+  logger(message: string): void {
+    console.debug(`[Socket] ${message}`);
+  }
 }
 
 export default SocketServer;

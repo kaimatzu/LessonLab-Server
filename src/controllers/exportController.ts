@@ -18,7 +18,6 @@ class ExportController {
     const { data, filename } = req.body
     try {
       fs.writeFile(__dirname + `/../../exports/` + `${filename}.gift`, data, () => { })
-      console.log('LOG: File created')
       return res.status(201).json({ fileName: `${filename}.gift`, data })
     } catch (error) {
       console.log(error)
@@ -34,7 +33,6 @@ class ExportController {
    */
   async deleteExport(req: Request, res: Response) {
     const { filename } = req.body
-    console.log('LOG: Deleting file')
     try {
       fs.unlink(__dirname + `/../../exports/` + `${filename}.gift`, (error) => {
         if (error) {

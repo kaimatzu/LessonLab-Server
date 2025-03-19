@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from "uuid";
 import jwt from 'jsonwebtoken';
 import Server from "../index";
 import { serializeTuple } from "../socketServer";
+import { charge, chargeUserByModuleId } from "../../src/utils/charge";
+import { object } from "zod";
 
 class ModuleController {
 
@@ -26,12 +28,13 @@ class ModuleController {
     this.deleteModuleNodeCallback = this.deleteModuleNodeCallback.bind(this);
   }
 
+  // #region createModule
   /**
   * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
   * 
   * @param req The request object, expected to contain the pageId, new title, and the lessonId.
   * @param res The response object.
-  */ 
+  */
   async createModule(req: Request, res: Response) {
     const token = req.cookies.authToken;
 
@@ -47,22 +50,22 @@ class ModuleController {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const { name, description, workspaceId } = req.body;
     if (!name || !workspaceId) {
       return res.status(400).json({ message: 'Module name is required' });
     }
-  
+
     try {
       const connection = await getDbConnection();
       const moduleId = uuidv4();
-  
+
       // Create the new module
       await connection.execute(
         'INSERT INTO module_Modules (ModuleID, Name, Description, WorkspaceID) VALUES (?, ?, ?, ?)',
         [moduleId, name, description ? description : '', workspaceId]
       );
-  
+
       // Create a root module node or initial structure
       await connection.execute(
         'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
@@ -73,14 +76,15 @@ class ModuleController {
         'INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position) VALUES (?, ?, ?, 0, 0)',
         [moduleId, moduleId, moduleId]
       );
-  
+
       await connection.end();
       return res.status(201).json({ message: 'Module created successfully', moduleId: moduleId, moduleNodeID: moduleId });
-    } catch ( error ) {
+    } catch (error) {
       console.error('Error creating module:', error);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
   }
+  // #endregion createModule
 
   /**
   * Creates a new module tree with a single module root node. Each module root node acts as a separate module.
@@ -89,18 +93,18 @@ class ModuleController {
   * @param name The Module's name.
   * @param description  The Module's description. This will be used by the AI model to generate the content.
   * @param workspaceId The Module's workspace to add to.
-  */ 
+  */
   async createModuleCallback(name: string, description: string, workspaceId: string, createdModuleId?: string) {
     try {
       const connection = await getDbConnection();
       const moduleId = createdModuleId ? createdModuleId : uuidv4();
-  
+
       // Create the new module
       await connection.execute(
         'INSERT INTO module_Modules (ModuleID, Name, Description, WorkspaceID) VALUES (?, ?, ?, ?)',
         [moduleId, name, description, workspaceId]
       );
-  
+
       // Create a root module node or initial structure
       await connection.execute(
         'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
@@ -111,10 +115,10 @@ class ModuleController {
         'INSERT INTO module_ModuleClosureTable (ModuleID, Ancestor, Descendant, Depth, Position) VALUES (?, ?, ?, 0, 0)',
         [moduleId, moduleId, moduleId]
       );
-  
+
       await connection.end();
       return ({ message: 'Module created successfully', moduleId: moduleId, moduleNodeID: moduleId });
-    } catch ( error ) {
+    } catch (error) {
       console.error('Error creating module:', error);
       return ({ message: 'Internal Server Error' });
     }
@@ -141,13 +145,13 @@ class ModuleController {
     if (req.method !== 'GET') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const { moduleId: workspaceId } = req.params;
-  
+
     if (!workspaceId) {
       return res.status(400).json({ message: "Module ID" });
     }
-  
+
     try {
       const connection = await getDbConnection();
       const [rows]: any[] = await connection.execute(
@@ -156,7 +160,7 @@ class ModuleController {
       );
 
       await connection.end();
-  
+
       res.status(200).json(rows);
     } catch (error) {
       console.error('Error fetching subtree:', error);
@@ -202,8 +206,8 @@ class ModuleController {
 
       // Update the module name in the database
       await connection.execute(
-          `UPDATE module_Modules SET Name = ? WHERE WorkspaceID = ? AND ModuleID = ?`,
-          [newName, workspaceId, moduleId]
+        `UPDATE module_Modules SET Name = ? WHERE WorkspaceID = ? AND ModuleID = ?`,
+        [newName, workspaceId, moduleId]
       );
 
       await connection.end();
@@ -215,6 +219,7 @@ class ModuleController {
     }
   }
 
+  // #region deleteModule
   /**
    * Deletes a module from a workspace.
    *
@@ -248,8 +253,8 @@ class ModuleController {
 
       // Delete the module from the database
       const result: any = await connection.execute(
-          `DELETE FROM module_Modules WHERE ModuleID = ?`, // Assuming the column name is `id`
-          [moduleId]
+        `DELETE FROM module_Modules WHERE ModuleID = ?`, // Assuming the column name is `id`
+        [moduleId]
       );
       const header = result[0];
 
@@ -265,26 +270,28 @@ class ModuleController {
       res.status(500).json({ message: 'Internal Server Error' });
     }
   }
+  // #endregion deleteModule
 
+  // #region insertChildToModuleNode
   /**
   * Inserts a new child node under a specific module node.
   * 
   * @param req The request object, expected to contain the parent node ID, module ID, content, and title.
   * @param res The response object.
-  */ 
+  */
   async insertChildToModuleNode(req: Request, res: Response) {
     if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const { parentNodeId, moduleId, content, title } = req.body;
     if (!parentNodeId || !moduleId) {
       return res.status(400).json({ message: 'Parent Node ID and Module ID are required' });
     }
-  
+
     try {
       const connection = await getDbConnection();
-  
+
       // Check if the module and parent node exist
       const [moduleExists]: any = await connection.execute(
         'SELECT COUNT(*) AS count FROM module_Modules WHERE ModuleID = ?',
@@ -294,19 +301,19 @@ class ModuleController {
         'SELECT COUNT(*) AS count FROM module_ModuleNodes WHERE ModuleNodeID = ?',
         [parentNodeId]
       );
-  
+
       if (moduleExists[0].count === 0 || parentNodeExists[0].count === 0) {
         return res.status(404).json({ message: 'Module or Parent Node does not exist' });
       }
-  
+
       const moduleNodeID = uuidv4();
-  
+
       // Insert new module node as a child
       await connection.execute(
         'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
         [moduleNodeID, title, content, moduleId]
       );
-  
+
       // Calculate the new position as the count of current siblings
       const [positionData]: any = await connection.execute(
         `SELECT COUNT(*) AS siblingCount FROM module_ModuleClosureTable 
@@ -334,13 +341,17 @@ class ModuleController {
         [moduleId, parentNodeId, moduleNodeID, newDepth, newPosition]
       );
 
+      chargeUserByModuleId(connection, content, moduleId);
+
       await connection.end();
+
       return res.status(201).json({ message: 'Module node child added successfully', moduleNodeID: moduleNodeID });
     } catch (error) {
       console.error('Error inserting module node child:', error);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
-  }    
+  }
+  // #endregion insertChildToModuleNode
 
   /**
   * Inserts a new child node under a specific module node.
@@ -350,11 +361,11 @@ class ModuleController {
   * @param moduleId The Module to insert the node in.
   * @param content The node's content.
   * @param title The node's title.
-  */ 
+  */
   async insertChildToModuleNodeCallback(parentNodeId: string, moduleId: string, moduleNodeId: string, content: string, title: string, position: number, depth: number) {
     try {
       const connection = await getDbConnection();
-  
+
       // Check if the module and parent node exist
       const [moduleExists]: any = await connection.execute(
         'SELECT COUNT(*) AS count FROM module_Modules WHERE ModuleID = ?',
@@ -364,13 +375,13 @@ class ModuleController {
         'SELECT COUNT(*) AS count FROM module_ModuleNodes WHERE ModuleNodeID = ?',
         [parentNodeId]
       );
-  
+
       if (moduleExists[0].count === 0 || parentNodeExists[0].count === 0) {
         return ({ message: 'Module or Parent Node does not exist' });
       }
-  
+
       const moduleNodeID = moduleNodeId;
-  
+
       // Insert new module node as a child
       await connection.execute(
         'INSERT INTO module_ModuleNodes (ModuleNodeID, Title, Content, ModuleID) VALUES (?, ?, ?, ?)',
@@ -390,7 +401,7 @@ class ModuleController {
       console.error('Error inserting module node child:', error);
       return ({ message: 'Internal Server Error' });
     }
-  }   
+  }
 
   /**
   * Builds a hierarchical tree from a flat array of node relationships.
@@ -430,13 +441,13 @@ class ModuleController {
   */
   async getModuleTree(req: Request, res: Response) {
     const { moduleId } = req.params;
-  
+
     if (!moduleId) {
       return res.status(400).json({ message: "Module ID" });
     }
-    
-    
-    
+
+
+
     try {
       const connection = await getDbConnection();
 
@@ -444,11 +455,11 @@ class ModuleController {
         `SELECT WorkspaceID FROM module_Modules WHERE ModuleID = ?`,
         [moduleId]
       );
-      
+
       if (!moduleRows.length) {
         throw new Error('Module not found');
       }
-      
+
       const workspaceId = moduleRows[0].WorkspaceID;
       const serializedKey = serializeTuple([moduleId, workspaceId]);
       const existingTreeData = Server.getInstance().socketServer.workspaceModulesBuffer.get(serializedKey);
@@ -475,19 +486,19 @@ class ModuleController {
             mc.ModuleID = ?`,
           [moduleId]
         );
-  
+
         const nodeMap = this.buildFullTree(rows);
         const tree = nodeMap.get(moduleId);
-  
+
         if (!tree) throw new Error("Module Tree does not exist.")
-  
+
         await connection.end();
-  
+
         res.status(200).json({
           WorkspaceID: workspaceId,
           retrievalSource: 'database',
           tree
-        });  
+        });
       }
 
     } catch (error) {
@@ -507,33 +518,33 @@ class ModuleController {
   */
   async getSubtree(req: Request, res: Response) {
     const { moduleId, moduleNodeId } = req.params;
-  
+
     if (!moduleId || !moduleNodeId) {
       return res.status(400).json({ message: "Module ID and Node ID are required" });
     }
-  
+
     try {
       const connection = await getDbConnection();
       const [rows]: any[] = await connection.execute(
         `SELECT * FROM module_ModuleClosureTable WHERE ModuleID = ?`,
         [moduleId]
       );
-      
+
       console.log("Rows: ", rows);
 
       const nodeMap = this.buildFullTree(rows);
       const subtreeRoot = nodeMap.get(moduleNodeId);
       const subtree = subtreeRoot || { message: "Node ID not found in the tree" };
-  
+
       await connection.end();
-  
+
       res.status(200).json(subtree);
     } catch (error) {
       console.error('Error fetching subtree:', error);
       res.status(500).json({ message: 'Internal Server Error' });
     }
   }
-  
+
   /**
   * Recursively fetches the children of a given module node from the module closure table.
   * This function traverses all descendants of a specified parent node, building a hierarchical tree structure.
@@ -551,9 +562,9 @@ class ModuleController {
         ORDER BY Position`,
       [moduleId, parentId]
     );
-  
+
     console.log("Children:", children);
-  
+
     // Only make recursive calls if there are further descendants
     if (children[0].length > 0) {
       // Iterate through each child to construct the tree recursively
@@ -565,10 +576,10 @@ class ModuleController {
       console.log("Terminate")
       return [];  // No further descendants, terminate the recursion
     }
-      
+
     return children[0];
   }
-  
+
   /**
   * Fetches the tree or subtree starting from a specific node recursively.
   * This function is very situational is usage as it is slower than the former 
@@ -579,28 +590,28 @@ class ModuleController {
   */
   async getSubtreeRecursively(req: Request, res: Response) {
     const { moduleId, moduleNodeId } = req.params;
-  
+
     if (!moduleId || !moduleNodeId) {
       return res.status(400).json({ message: "Module ID and Node ID are required" });
     }
-  
+
     try {
       const connection = await getDbConnection();
-  
+
       // Fetch the root node information if needed
       const rootNode: any = await connection.execute(
         `SELECT * FROM module_ModuleClosureTable
          WHERE ModuleID = ? AND Descendant = ?`,
         [moduleId, moduleNodeId]
       );
-  
+
       // Recursively fetch all children
       const tree = rootNode[0][0];
       console.log("Tree: ", tree);
       tree.Children = await this.fetchChildren(connection, moduleId, moduleNodeId);
-  
+
       await connection.end();
-  
+
       res.status(200).json(tree);
     } catch (error) {
       console.error('Error fetching subtree:', error);
@@ -613,7 +624,7 @@ class ModuleController {
   * 
   * @param req The request object, expected to contain the module node ID and new content.
   * @param res The response object.
-  */ 
+  */
   async updateModuleNodeContent(req: Request, res: Response) {
     if (req.method !== 'PATCH') {
       return res.status(405).json({ message: 'Method Not Allowed' });
@@ -626,12 +637,14 @@ class ModuleController {
 
     try {
       const connection = await getDbConnection();
-      
+
       // Update content in the module node
       await connection.execute(
         'UPDATE module_ModuleNodes SET Content = ? WHERE ModuleNodeID = ?',
         [content, moduleNodeId]
       );
+
+      chargeUserByModuleId(connection, content, moduleNodeId)
 
       await connection.end();
       return res.status(200).json({ message: 'Module node content updated successfully' });
@@ -651,7 +664,7 @@ class ModuleController {
   async updateModuleNodeContentCallback(moduleNodeId: string, content: string) {
     try {
       const connection = await getDbConnection();
-      
+
       // Update content in the module node
       await connection.execute(
         'UPDATE module_ModuleNodes SET Content = ? WHERE ModuleNodeID = ?',
@@ -671,7 +684,7 @@ class ModuleController {
   * 
   * @param req The request object, expected to contain the module node ID and new title.
   * @param res The response object.
-  */ 
+  */
   async updateModuleNodeTitle(req: Request, res: Response) {
     if (req.method !== 'PATCH') {
       return res.status(405).json({ message: 'Method Not Allowed' });
@@ -686,7 +699,7 @@ class ModuleController {
 
     try {
       const connection = await getDbConnection();
-      
+
       // Update title in the module node
       await connection.execute(
         'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
@@ -711,7 +724,7 @@ class ModuleController {
   async updateModuleNodeTitleCallback(moduleNodeId: string, title: string) {
     try {
       const connection = await getDbConnection();
-      
+
       // Update title in the module node
       await connection.execute(
         'UPDATE module_ModuleNodes SET Title = ? WHERE ModuleNodeID = ?',
@@ -747,8 +760,8 @@ class ModuleController {
 
       // Step 1: Get the node to delete, including its Position and Depth
       const [nodeRows]: any[] = await connection.execute(
-          'SELECT Position, Depth, ModuleID FROM module_ModuleClosureTable WHERE Descendant = ?',
-          [moduleNodeId]
+        'SELECT Position, Depth, ModuleID FROM module_ModuleClosureTable WHERE Descendant = ?',
+        [moduleNodeId]
       );
 
       if (nodeRows.length === 0) {
@@ -759,14 +772,14 @@ class ModuleController {
 
       // Step 2: Update positions of nodes with the same Depth and higher Position
       await connection.execute(
-          'UPDATE module_ModuleClosureTable SET Position = Position - 1 WHERE ModuleID = ? AND Depth = ? AND Position > ?',
-          [moduleId, deletedNodeDepth, deletedNodePosition]
+        'UPDATE module_ModuleClosureTable SET Position = Position - 1 WHERE ModuleID = ? AND Depth = ? AND Position > ?',
+        [moduleId, deletedNodeDepth, deletedNodePosition]
       );
 
       // Step 3: Delete the module node
       await connection.execute(
-          'DELETE FROM module_ModuleClosureTable WHERE Descendant = ?',
-          [moduleNodeId]
+        'DELETE FROM module_ModuleClosureTable WHERE Descendant = ?',
+        [moduleNodeId]
       );
 
       await connection.end();
@@ -786,7 +799,7 @@ class ModuleController {
   async deleteModuleNodeCallback(moduleNodeId: string) {
     try {
       const connection = await getDbConnection();
-      
+
       // Delete the module node
       await connection.execute(
         'DELETE FROM module_ModuleNodes WHERE ModuleNodeID = ?',

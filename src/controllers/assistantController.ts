@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { getDbConnection } from "../utils/storage/database";
 import jwt from 'jsonwebtoken';
 import { Message } from '../types/globals';
+import { chargeUserByWorkspaceId } from "../../src/utils/charge";
 
 class AssistantController {
 
@@ -21,19 +22,19 @@ class AssistantController {
     if (req.method !== 'GET') {
       return res.status(405).json({ message: 'Method Not Allowed' });
     }
-  
+
     const token = req.cookies.authToken;
     if (!token) {
       return res.status(403).json({ message: 'No token provided' });
     }
-  
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
     if (!decoded) {
       return res.status(403).json({ message: 'Invalid token' });
     }
 
     const { workspaceId } = req.params;
-    
+
     if (!workspaceId) {
       return res.status(400).json({ message: 'Workspace ID is required' });
     }
@@ -67,11 +68,11 @@ class AssistantController {
     try {
       const connection = await getDbConnection();
       await connection.execute(
-        'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `Type`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)', 
+        'INSERT INTO ChatHistory (`MessageID`, `Content`, `Role`, `Type`, `WorkspaceID`) VALUES (?, ?, ?, ?, ?)',
         [messageId, message.content, message.role, messageType, workspaceID]
       );
 
-      await connection.end();
+      await chargeUserByWorkspaceId(connection, message.content?.toString() ?? '-----', workspaceID);
     } catch (error) {
       throw new Error('Failed to insert chat history: ' + error);
     }
@@ -106,7 +107,7 @@ class AssistantController {
 
     try {
       const connection = await getDbConnection();
-      
+
       // Update the message content
       const [rows] = await connection.execute(
         'UPDATE ChatHistory SET Content = ? WHERE MessageID = ?',

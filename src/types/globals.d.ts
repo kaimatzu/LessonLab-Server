@@ -32,7 +32,7 @@ export interface Options {
 export interface EventsMap {
   // Socket.io handling
   'request-ack'(userId: string, callback: (ack: string) => void): void
-  'join-room'(roomId: string): void; 
+  'join-room'(roomId: string): void;
   'leave-room'(roomId: string): void;
   'leave-all-rooms'(): void;
   'send-data'(roomId: string): void;
@@ -49,9 +49,11 @@ export interface EventsMap {
   'module-outline-inject-content'(workspaceId: string, assistantMessageId: string, moduleId: string, subject: string, context_instructions: string);
   'module-outline-data'(assistantMessageId: string, workspaceId: string, moduleId: string, moduleData: ModuleOutline);
   'confirm-module-outline-response'(action: string, workspaceID: string, moduleId: string, module: Module, subject: string, context_instructions: string);
-  //Module Specific
+  // Module Specific
   'create-module'(moduleId: string, workspaceID: string, name: string, description: string, callback: (ack: string) => void);
   'update-module-node'(moduleId: string, moduleNodeId: string, workspaceId: string, contentDelta: string, contentSnapshot: string);
+  // Tokens
+  'token-update'(tokens: number);
 }
 
 export interface ChatCompletionUsage {
@@ -77,9 +79,9 @@ export interface ChatCompletionEvents {
   // totalUsage: (usage: CompletionUsage, workspaceId: string) => void;
 }
 
-export interface ListenEvents extends EventsMap {}
+export interface ListenEvents extends EventsMap { }
 
-export interface EmitEvents extends EventsMap, ChatCompletionEvents {}
+export interface EmitEvents extends EventsMap, ChatCompletionEvents { }
 
 export type ClientOptions = {
   chat: Options['chat'];
@@ -88,14 +90,14 @@ export type ClientOptions = {
 };
 
 export interface Client
-  extends Socket<ListenEvents, EmitEvents, DefaultEventsMap, ClientOptions> {}
-  // extends Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any> {}
+  extends Socket<ListenEvents, EmitEvents, DefaultEventsMap, ClientOptions> { }
+// extends Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any> {}
 
 export type MapToString<T extends any[]> = { [K in keyof T]: string };
 
 export type WorkspaceMessageKey = MapToString<[string, string]>; // [assistantMessageId, workspaceId]
 export type WorkspaceMessageValue = MapToString<[string, string]>; // [contentDelta, contentSnapshot]
-  
+
 // Type-safe Map for workspace messages
 export type WorkspaceMessagesBuffer = Map<string, WorkspaceMessageValue>;
 
@@ -116,7 +118,7 @@ export interface Module {
   id: string;
   name: string;
   description: string;
-  nodes: ModuleNode[]; 
+  nodes: ModuleNode[];
 };
 
 // export type TupleToModuleValue<T extends [string, Module]> = {
@@ -125,7 +127,7 @@ export interface Module {
 
 export type WorkspaceModuleKey = MapToString<[string, string]>; // [moduleId, workspaceId]
 // export type WorkspaceModuleValue = TupleToModuleValue<[string, Module]>;
-  
+
 // Type-safe Map for workspace module
 export type WorkspaceModulesBuffer = Map<string, Module>;
 
