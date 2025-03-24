@@ -3,14 +3,16 @@ import { getDbConnection } from "../utils/storage/database";
 import { v4 as uuidv4 } from "uuid";
 import jwt from 'jsonwebtoken';
 import { toBase64 } from "openai/core";
-import { uuid } from "uuidv4/build/lib/uuidv4";
 
 class TransactionController {
+
+
   constructor() {
     this.createTokenPurchaseCheckoutSession = this.createTokenPurchaseCheckoutSession.bind(this)
     this.getTokenPurchaseCheckoutSessionStatus = this.getTokenPurchaseCheckoutSessionStatus.bind(this)
   }
 
+  // #region createTokenPurcheaseCheckoutSessionStatus
   /**
    * 
    * @param req The request object
@@ -29,6 +31,8 @@ class TransactionController {
     }
     const { amount, currency, description, name } = req.body;
     const reference_number = uuidv4();
+
+    console.log("Create Incoming Request:", req.body);
 
     try {
       const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
@@ -64,11 +68,12 @@ class TransactionController {
       });
 
       if (!response.ok) {
-        return res.status(400).json({ message: 'Failed to create checkout session: ' + response.statusText });
+        console.log('>>> paymongo response: ', await response.json())
+        return res.status(400).json({ message: 'Paymongo responded: ' + response.statusText });
       }
 
       const responseData = await response.json() as { data?: any };
-      console.log("Full PayMongo Response:", JSON.stringify(responseData, null, 2));
+      // console.log("Full PayMongo Response:", JSON.stringify(responseData, null, 2));
 
       const sessionId = responseData?.data?.id;
 
@@ -94,14 +99,16 @@ class TransactionController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+  // #endregion createTokenPurcheaseCheckoutSessionStatus
 
+  // #region getTokenPurcheaseCheckoutSessionStatus
   async getTokenPurchaseCheckoutSessionStatus(req: Request, res: Response) {
     try {
-      console.log("Incoming Request:", req.params);
+      console.log("Get Incoming Request:", req.params);
 
       const sessionId = req.params.sessionId || req.query.sessionId;
       if (!sessionId) {
-        console.warn("Missing session ID");
+        console.error("Missing session ID");
         return res.status(400).json({ message: "Session ID is required" });
       }
 
@@ -119,26 +126,32 @@ class TransactionController {
       }
 
       const responseData = await response.json() as { data?: any };
-      console.log("Full PayMongo Response:", JSON.stringify(responseData, null, 2));
+      console.log(">>> Full PayMongo JSON Response:", responseData);
+      const amount = responseData.data.attributes.line_items[0].name
 
       // Extract the payment status
       const status = responseData?.data?.attributes?.payments?.[0]?.attributes?.status || "unknown";
       const userId = req.query.user_id;
 
       if (status !== "paid") {
-        console.warn(`Payment not succeeded for session ${sessionId}, status: ${status}`);
+        console.error(`Payment not succeeded for session ${sessionId}, status: ${status}`);
         return res.status(200).json({ message: "Payment not yet completed", status });
       }
 
       if (!userId) {
-        console.warn("No user ID provided.");
+        console.error("No user ID provided.");
         return res.status(400).json({ message: "User ID is required to update tokens" });
       }
 
       const connection = await getDbConnection();
+
+      // const amount: '200,000,000 Tokens' | '400,000,000 Tokens' | '600,000,000 Tokens' | '800,000,000 Tokens' | '1,000,000,000 Tokens' = '200,000,000 Tokens'
+
+      const tokens = amount === '200,000,000 Tokens' ? 200000000 : amount === '400,000,000 Tokens' ? 400000000 : amount === '600,000,000 Tokens' ? 600000000 : amount === '1,000,000,000 Tokens' ? 1000000000 : 0;
+
       const result: any = await connection.execute(
         "UPDATE Users SET Tokens = Tokens + ? WHERE UserID = ?",
-        [100, userId]
+        [tokens, userId]
       );
       await connection.end();
 
@@ -147,7 +160,7 @@ class TransactionController {
         return res.status(404).json({ message: "User not found" });
       }
 
-      console.log(`User ${userId} received 100 tokens`);
+      console.log(`User ${userId} received ${tokens} tokens`);
       return res.status(200).json({ message: "Tokens added successfully" });
 
     } catch (error) {
@@ -155,6 +168,7 @@ class TransactionController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+  // #endregion getTokenPurcheaseCheckoutSessionStatus
 }
 
 export default new TransactionController();
